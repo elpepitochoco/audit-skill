@@ -2,14 +2,10 @@
 
 ## File
 
-- Write a **new** file in `audits/` at the resolved target root on every run, even when nothing is found. Create the folder if missing.
-- Use a real `audits/` directory inside the target. If that path is a symbolic link or junction, surface it as a publication blocker.
+- Write a **new** report in `audits/` at the target root on every run, even when nothing is found. `audits/` must be a real directory; a symbolic link or junction there is a publication blocker.
 - Name: `YYYY-MM-DD_HH-mm-ss-<scope>.md` in local time, for example `2026-11-21_14-32-08-general.md`. `<scope>` is a short kebab-case slug of the resolved scope (`general` for a full audit).
-- Reserve the final name without overwriting another run. On collision, try `-2`, `-3`, … before `.md`. Use a no-overwrite filesystem operation, so a concurrent run cannot create the same path between a check and the write.
-- Write UTF-8 without a byte order mark.
-- Publish only the complete report. When `scripts/` is installed and Node.js 18.14 or later is available, write the draft in the system temp folder and run `node <skill-dir>/scripts/publish-report.cjs --check <draft-file> <target-root>/audits/<intended-filename>.md`. It validates the exact bytes it publishes, prints the actual path and deletes the draft if it is in the temp folder and outside the target; on failure the draft stays for correction. Fix any reported format errors and retry. Use the published path in chat.
-- If using forbidden-content patterns for a draft, pass the same `--forbid <regex>` options to the publisher before the draft and destination arguments. The publisher checks those patterns against the exact bytes and reports the pattern number if a match blocks publication.
-- Under the same conditions, to check a draft separately, run `node <skill-dir>/scripts/check-report.cjs <draft-file>` with the intended report filename. It checks structure and counts. Assess findings and evidence separately. When using other publication tools, validate the draft if possible.
+- Publish only the complete report. When `scripts/` is installed and Node.js 18.14 or later is available, write the draft in the system temp folder and run `node <skill-dir>/scripts/publish-report.cjs --check [--forbid <regex>]... <draft-file> <target-root>/audits/<intended-filename>.md`. It checks the format, picks a free name, prints the published path and removes the draft. Fix any reported error and retry; use the printed path in chat.
+- Otherwise write UTF-8 without a byte order mark and never overwrite a report: on collision use `-2`, `-3`, … before `.md`, with a no-overwrite file operation.
 
 ## Required content, in this order
 
@@ -56,5 +52,6 @@ Use these section headings verbatim: Summary, Findings, Planned later, Changes s
 - One finding covers one cause in one sub-category. Split a finding that mixes gaps from different sub-categories (for example a missing file and a missing text alternative, or a missing role check and a missing organization check on the same function). Group observations when the same correction resolves them. Give independent gaps separate findings when they need different corrections, even when they appear in the same function or share an evidence location.
 - `<Axis> / <Sub-category>` is one row of the grid in [criteria.md](criteria.md), spelled exactly as there. In **supplied criteria only** mode, write `Criteria / <criterion ID or short name>` instead, in the supplied criterion's own wording. Never merge or invent sub-categories; pick the closest row.
 - Mask secrets and personal data in the evidence. Show no character of a secret value: a public type prefix (`sk_live_`, `ghp_`) and the length are enough. For personal data, name the field or record ID, not the value.
+- Close a gap as **Planned later** only when the user or an in-scope source records an explicit decision for that gap. A proposal, TODO or tentative milestone leaves it active.
 - Entries under Planned later use the same heading and evidence format, including Impact. Add a `- **Decision**` bullet and cite its source there or in a separate `- **Source**` bullet. Include the deadline or milestone if given.
 - A finding marked **Fixed** in this run stays under Findings with its re-check evidence, and is not counted in the Summary table. In later runs it is no longer listed.
