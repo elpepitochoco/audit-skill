@@ -397,7 +397,9 @@ function run(args) {
         inputErrors.push({ path: target, error: 'no Markdown reports found' });
       }
       for (const report of reports) {
-        const resolved = path.resolve(report);
+        // The real path merges inputs that reach one file through a symlink (macOS /var is /private/var).
+        let resolved = path.resolve(report);
+        try { resolved = fs.realpathSync(report); } catch {}
         if (!files.has(resolved)) files.set(resolved, report);
       }
     } catch (error) {
