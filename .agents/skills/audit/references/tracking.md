@@ -37,7 +37,7 @@ For a finding covering several affected cases, mark it **Still present** if curr
 
 ## Planned later
 
-- Apply a deferral only when the user or an in-scope source records an explicit decision for the same gap. A proposal, TODO or tentative milestone leaves a confirmed gap active. If an explicit decision later defers an active finding, carry its ID into **Planned later** and cite the new decision.
+- The decision that allows a closure is defined in [report.md](report.md). If an explicit decision later defers an active finding, carry its ID into **Planned later** and cite the new decision.
 - Keep Planned later closures in the tracking on every run.
 - When the explicit date or milestone is reached and a new check confirms the gap, reopen the finding with its ID and current evidence. Give it the status **Still present** and write "reopened after deadline" in Changes since baseline.
 - If that check cannot be completed, keep the closure and state that the point remains to be re-checked.

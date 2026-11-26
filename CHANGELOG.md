@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.2.0
+
+- Lighter rules: a first audit loads 17.9 KB instead of 27.5 KB. Rare cases (criteria conflicts, supplied criteria only, deeper audit, missing target, folder outside Git, sampled data, early-stopping checks) moved to `references/special-cases.md`, read on demand; `tracking.md` is read only when earlier reports exist; publication rules condensed.
+- The installed skill folder is not part of the audited target.
+- Benchmark: `acceptance/usage.js` sums token usage per run; first comparison with and without the skill in `acceptance/RESULTS.md`.
+
 ## 2.1.0
 
 - Reports from 1.x stay usable as a baseline again: 2.0.0 only added coverage counts, so the history is kept.

@@ -1,6 +1,6 @@
 # Audit skill acceptance
 
-This folder checks that the skill meets the [specification's acceptance criteria](../SPEC.md#acceptance-criteria). It holds a fake project, [`fixture/`](fixture/), with known defects, and what each audit must find.
+This folder checks the skill against known cases. It holds a fake project, [`fixture/`](fixture/), with known defects, and what each audit must find.
 
 `fixture/` is a dependency-free Node.js billing module. `npm test` runs Node's built-in test runner. The e-mails are fictitious and the API key is fake.
 

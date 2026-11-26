@@ -558,3 +558,22 @@ Fixes before the replay, from the cross-branch audits in `audits/` (`2026-11-24_
 **Claude Code: cases 1, 2, 4, 5 and 7 pass** (case 1: 11 of 11), then the monthly spend limit stopped every later step; the runner reported each one as FAIL. Resumed on 2026-11-25: cases 8 to 30 (27 and 34 included) pass with Claude Code; cases 9 and 14 add the accepted Low finding on a caller without `orgId`. A first resume collided with a stopped loop on `c8`, then reran cleanly. Cases 31 to 41, the README example and cases 42, 44, 59 and 76 then passed with Claude Code on 2026-11-26, which completes the replay with both tools. The common cases pass with `git-scope.md` loaded, with the same results as before the merge, so no instruction was cut (CDX-03).
 
 One calibration gap: Claude Code rated the unverifiable approvals of case 37 **Informational** "because the evidence lives outside the repository". `criteria.md` now says a point to verify is rated by the impact the gap would have if confirmed, since the To verify certainty already records the missing evidence. Re-run: Medium with both tools; case 13 stays High with Claude Code. Codex again files the case 37 tag mismatch under Quality / Data integrity, now accepted.
+
+## 2026-11-26 — with and without the skill, and lighter rules (2.2.0)
+
+Cases 1, 5, 21 and the README example, one run each with Claude Code and Codex, in three setups: no skill (`AUDIT_SKILL=none`), the 2.1.0 rules, and the 2.2.0 rules. Token counts come from `acceptance/usage.js`. One run per case is a small sample: single-case differences are within run-to-run noise.
+
+**Detection.** Without the skill, both agents already find most planted defects in case 1, in their own format: Claude Code covers all eleven by reading, Codex about eight (it merges the committed key, the logged key and the documentation conflict, and leaves missing tests out of its findings). Both keep P-02 open in the README example and find the self-deletion gap in case 21. With 2.1.0 and 2.2.0, `score-case1.js` gives 11/11, 11/11 (2.1.0) and 9/11, 10/11 (2.2.0); reading the 2.2.0 reports shows all eleven defects, the misses are titles without the scorer's keywords ("organization boundaries" for D11, "regression coverage" for D6).
+
+**What the skill adds.** A report format that the checker validates; findings kept to the requested scope (without the skill, Claude Code added two findings outside the audited commit in case 21); and tracking across runs: in case 5 only the runs with the skill keep IDs and move them from New to Not reverified to Fixed.
+
+**Cost.** Total input tokens over the six agent steps:
+
+| Tool | No skill | 2.1.0 | 2.2.0 |
+| --- | --- | --- | --- |
+| Claude Code | 0.96 M | 2.62 M | 2.36 M (−10%) |
+| Codex | 0.87 M | 1.79 M | 1.70 M (−5%) |
+
+The skill costs two to three times the tokens of a plain prompt. 2.2.0 loads 17.9 KB of rules for a first audit instead of 27.5 KB.
+
+**Scope fix.** In case 1, Codex also audited the skill's own installed scripts (2.1.0 and 2.2.0). 2.2.0 states that the installed skill folder is not part of the target; a Codex rerun of case 1 no longer mentioned it. That rerun missed D7 (crash on an unknown user, Low), which earlier runs found.
