@@ -7,7 +7,7 @@
 - Name: `YYYY-MM-DD_HH-mm-ss-<scope>.md` in local time, for example `2026-11-21_14-32-08-general.md`. `<scope>` is a short kebab-case slug of the resolved scope (`general` for a full audit).
 - Reserve the final name without overwriting another run. On collision, try `-2`, `-3`, … before `.md`. Use a no-overwrite filesystem operation, so a concurrent run cannot create the same path between a check and the write.
 - Write UTF-8 without a byte order mark.
-- Publish only the complete report. When `scripts/` is installed and Node.js 18.14 or later and hard links are available, write the draft outside the target and run `node <skill-dir>/scripts/publish-report.cjs --check <draft-file> <target-root>/audits/<intended-filename>.md`. It validates the exact bytes it publishes, prints the actual path and deletes the draft; on failure the draft stays for correction. Fix any reported format errors and retry. Use the published path in chat.
+- Publish only the complete report. When `scripts/` is installed and Node.js 18.14 or later is available, write the draft in the system temp folder and run `node <skill-dir>/scripts/publish-report.cjs --check <draft-file> <target-root>/audits/<intended-filename>.md`. It validates the exact bytes it publishes, prints the actual path and deletes the draft if it is in the temp folder; on failure the draft stays for correction. Fix any reported format errors and retry. Use the published path in chat.
 - If using forbidden-content patterns for a draft, pass the same `--forbid <regex>` options to the publisher before the draft and destination arguments. The publisher checks those patterns against the exact bytes and reports the pattern number if a match blocks publication.
 - Under the same conditions, to check a draft separately, run `node <skill-dir>/scripts/check-report.cjs <draft-file>` with the intended report filename. It checks structure and counts. Assess findings and evidence separately. When using other publication tools, validate the draft if possible.
 
@@ -21,7 +21,7 @@ Use these section headings verbatim: Summary, Findings, Planned later, Changes s
    - **Local changes** changes of the target found before writing (excluding `audits/` unless in scope)
    - **Scope** axes, sub-categories, repository areas
    - **Criteria mode** Start with built-in grid, extended grid, or supplied criteria only. Use punctuation to separate any qualifying detail from the mode.
-   - **Checks and references** checks applied, and references the user supplied (path + content hash for local files). The skill's own files are not references.
+   - **Checks and references** checks applied, and references the user supplied (path + content hash for local files). The skill's own files are not references; give the skill version from the `SKILL.md` metadata instead.
    - **Baseline** baseline report and why it was chosen, or why none applies
 2. **Summary** with the count of active findings per priority:
 

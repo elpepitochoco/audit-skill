@@ -4,6 +4,8 @@ An agent skill that audits code, documents, data or processes. It compares an ob
 
 ## Install
 
+Built for Claude, Codex and Gemini. Tested so far with Claude Code and Codex; Gemini is not tested yet.
+
 From the root of the project to audit:
 
 ```sh
@@ -55,7 +57,11 @@ Official documentation: [Codex](https://learn.chatgpt.com/docs/build-skills) · 
 - A change against its goal: `Use the audit skill on the last commit, against the goal in its message.`
 - Your own rules only: `Use the audit skill with only the criteria in docs/rules.md, on src/.`
 
-Each run writes a report in `audits/` with findings ranked by priority, their evidence and a proposed fix.
+Each run writes a report in `audits/` with findings ranked by priority, their evidence and a proposed fix. See [a complete example](examples/2026-11-26_10-00-00-publications.md).
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) and [CHANGELOG.md](CHANGELOG.md).
 
 ## License
 

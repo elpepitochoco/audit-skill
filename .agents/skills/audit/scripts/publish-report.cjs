@@ -1,8 +1,9 @@
 'use strict';
 
 const { isUtf8 } = require('node:buffer');
-const { linkSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, rmdirSync, rmSync, writeFileSync } = require('node:fs');
-const { basename, dirname, extname, join, resolve } = require('node:path');
+const { linkSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmdirSync, rmSync, writeFileSync } = require('node:fs');
+const { tmpdir } = require('node:os');
+const { basename, dirname, extname, isAbsolute, join, relative, resolve } = require('node:path');
 
 const UTF8_BOM = Buffer.from([0xef, 0xbb, 0xbf]);
 
@@ -44,6 +45,14 @@ function publishReport(draft, destination, validate, forbid) {
         linkSync(temporaryReport, candidate);
         return candidate;
       } catch (error) {
+        if (error.code === 'EEXIST') continue;
+      }
+      try {
+        // shortcut: without hard links (FAT, some network shares) an exclusive create still never overwrites,
+        // but a concurrent reader may see a partly written file; fine for one agent per target.
+        writeFileSync(candidate, contents, { flag: 'wx' });
+        return candidate;
+      } catch (error) {
         if (error.code !== 'EEXIST') throw error;
       }
     }
@@ -74,8 +83,11 @@ try {
     }
   }
   console.log(publishReport(draft, destination, validate, forbid));
-  // The draft lives outside the target; removing it here spares agents a delete that may need extra permission.
-  rmSync(draft);
+  // Removing the draft spares agents a delete that may need extra permission, but only in the temp folder,
+  // so a mistyped draft path can never delete a project file.
+  const fromTemp = relative(realpathSync(tmpdir()), realpathSync(draft));
+  if (fromTemp && !fromTemp.startsWith('..') && !isAbsolute(fromTemp)) rmSync(draft);
+  else console.error(`Draft kept: ${draft} is outside the temp folder.`);
 } catch (error) {
   console.error(error.message);
   process.exitCode = 1;
