@@ -17,3 +17,7 @@ jobs:
         with:
           node-version: 22
       - run: node --test "tests/*.test.js" "acceptance/*.test.js"
+      # Surface each failing test as an annotation, readable without opening the log.
+      - if: failure()
+        shell: bash
+        run: node --test --test-reporter=tap "tests/*.test.js" "acceptance/*.test.js" 2>&1 | grep -E -A12 "^ *not ok" | grep -E "not ok|error|code|message|expected|actual" | head -40 | sed 's/^ */::error::/'
