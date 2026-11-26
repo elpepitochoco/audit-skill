@@ -1,7 +1,7 @@
 'use strict';
 
 const assert = require('node:assert/strict');
-const { mkdtempSync, rmSync, writeFileSync } = require('node:fs');
+const { existsSync, mkdtempSync, rmSync, writeFileSync } = require('node:fs');
 const { tmpdir } = require('node:os');
 const { join } = require('node:path');
 const test = require('node:test');
@@ -35,7 +35,9 @@ test('an active key finding and the amount-validation deferral are credited', (t
   assert.equal(r.D9, true);
 });
 
-test('archived case 1 reports still score 11 of 11', () => {
+// The run archive is kept out of the published repository.
+const archive = join(__dirname, 'runs');
+test('archived case 1 reports still score 11 of 11', { skip: !existsSync(archive) && 'run archive not published' }, () => {
   for (const tool of ['claude-code/case1/2026-11-23_17-20-22-general.md', 'codex/case1/2026-11-23_17-21-53-general.md']) {
     const all = score(join(__dirname, 'runs', '2026-11-23-regression-2', tool));
     assert.deepEqual(all.filter((r) => !r.ok).map((r) => r.ref), [], tool);
