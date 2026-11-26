@@ -13,13 +13,13 @@ const D9 = /amount|validat/i;
 const DEFECTS = [
   ['D1', /export/i, /organi[sz]ation|tenant|every|all /i, ['Critical', 'High']],
   ['D2', /delet/i, /admin|authori|permission|any user|role check|access/i, ['Critical', 'High']],
-  ['D3', /key|credential|secret/i, /source|commit|hard-?coded|config|embedded|tracked|git|repositor/i, ['Critical', 'High']],
-  ['D4', /key|credential|secret/i, /log|print|console|output|stdout/i, ['Critical', 'High']],
-  ['D5', /delet/i, /trace|audit|log|record|event/i, ['Medium', 'High']],
-  ['D6', /test/i, /./, ['Medium', 'Low']],
+  ['D3', /\b(?:keys?|credentials?|secrets?)\b/i, /source|commit|hard-?coded|config|embedded|tracked|git|repositor/i, ['Critical', 'High']],
+  ['D4', /\b(?:keys?|credentials?|secrets?)\b/i, /\b(?:log(?:s|ged|ging)?|print\w*|console|output|stdout)\b/i, ['Critical', 'High']],
+  ['D5', /delet/i, /trace|audit|\blog(?:s|ged|ging)?\b|record|event/i, ['Medium', 'High']],
+  ['D6', /\b(?:un)?test(?:s|ed|ing)?\b/i, /./, ['Medium', 'Low']],
   ['D7', /setRole|role/i, /crash|unknown|missing|exist|TypeError|target/i, ['Low', 'Medium']],
-  ['D8', /start/i, /./, ['Low', 'Medium']],
-  ['D10', /logging|log/i, /contradict|conflict|opposite|permission/i, ['Medium', 'Low']],
+  ['D8', /\bstart(?:s|up|ing)?\b/i, /./, ['Low', 'Medium']],
+  ['D10', /\blog(?:s|ged|ging)?\b/i, /contradict|conflict|opposite|permission/i, ['Medium', 'Low']],
   ['D11', /role|user admin|administrator/i, /organi[sz]ation|tenant|across|other/i, ['High', 'Medium']],
 ];
 

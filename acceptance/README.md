@@ -15,7 +15,7 @@ Set-Location $run
 git init -b main; git add .; git commit -m "Initial state"
 ```
 
-Then install the skill in that run repository for the tool under test (see the [README](../README.md#use-the-skill)) and send the case's invocation.
+Then install the skill in that run repository for the tool under test (see the [README](../README.md#install)) and send the case's invocation.
 
 ## Planted defects
 
@@ -56,6 +56,8 @@ sh acceptance/run.sh codex 1     # or: cc 1, codex 22, cc readme
 ```
 
 The script builds a fresh repository per case in `../audit-runs/<tool>/` (or `$AUDIT_RUNS`), installs the skill, applies the case steps and sends each prompt. Case 3 reuses case 1, and case 6 is case 1 with each tool. Replay the whole suite after a batch of skill changes: a rule that fixes one case can break another.
+
+To measure what the skill adds, run the same case without it: `AUDIT_SKILL=none sh acceptance/run.sh <codex|cc> <case>`. The repository gets no skill, the prompt drops the `$audit` or `/audit` invocation and asks for one Markdown report in `audits/`, and runs go to `../audit-runs/<tool>-noskill/`. Score both reports the same way, for example with `score-case1.js` for case 1.
 
 Check the format mechanically, then judge the content by hand:
 

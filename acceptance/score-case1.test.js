@@ -43,3 +43,15 @@ test('archived case 1 reports still score 11 of 11', { skip: !existsSync(archive
     assert.deepEqual(all.filter((r) => !r.ok).map((r) => r.ref), [], tool);
   }
 });
+
+test('keywords match whole words only', (t) => {
+  const report = [
+    finding('SEC-01', 'Low', 'New', 'The image uses node:latest'),
+    finding('SEC-02', 'Low', 'New', 'The login page exposes a monkey parameter'),
+    finding('SEC-03', 'Low', 'New', 'The worker restarts after a crash'),
+  ].join('\n');
+  const result = rows(t, report);
+  assert.equal(result.D6, false);
+  assert.equal(result.D4, false);
+  assert.equal(result.D8, false);
+});

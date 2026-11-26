@@ -1,7 +1,7 @@
 'use strict';
 
 const { isUtf8 } = require('node:buffer');
-const { linkSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmdirSync, rmSync, writeFileSync } = require('node:fs');
+const { linkSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, renameSync, rmdirSync, rmSync, writeFileSync } = require('node:fs');
 const { tmpdir } = require('node:os');
 const { basename, dirname, extname, isAbsolute, join, relative, resolve } = require('node:path');
 
@@ -47,13 +47,22 @@ function publishReport(draft, destination, validate, forbid) {
       } catch (error) {
         if (error.code === 'EEXIST') continue;
       }
+      // Without hard links (FAT, some network shares), publishers reserve the name with a lock directory, then
+      // rename the complete file into place, so a reader never sees a partial report.
+      // shortcut: a non-publisher creating the same name between the check and the rename would be replaced.
+      const lock = `${candidate}.lock`;
       try {
-        // shortcut: without hard links (FAT, some network shares) an exclusive create still never overwrites,
-        // but a concurrent reader may see a partly written file; fine for one agent per target.
-        writeFileSync(candidate, contents, { flag: 'wx' });
-        return candidate;
+        mkdirSync(lock);
       } catch (error) {
-        if (error.code !== 'EEXIST') throw error;
+        if (error.code === 'EEXIST') continue;
+        throw error;
+      }
+      try {
+        if (lstatSync(candidate, { throwIfNoEntry: false })) continue;
+        renameSync(temporaryReport, candidate);
+        return candidate;
+      } finally {
+        rmdirSync(lock);
       }
     }
   } finally {
@@ -83,11 +92,16 @@ try {
     }
   }
   console.log(publishReport(draft, destination, validate, forbid));
-  // Removing the draft spares agents a delete that may need extra permission, but only in the temp folder,
-  // so a mistyped draft path can never delete a project file.
-  const fromTemp = relative(realpathSync(tmpdir()), realpathSync(draft));
-  if (fromTemp && !fromTemp.startsWith('..') && !isAbsolute(fromTemp)) rmSync(draft);
-  else console.error(`Draft kept: ${draft} is outside the temp folder.`);
+  // Removing the draft spares agents a delete that may need extra permission. Only a draft in the temp folder
+  // and outside the audited target is removed, so a mistyped path never deletes a project file, even for a
+  // project that itself lives in the temp folder.
+  const draftPath = realpathSync(draft);
+  const inside = (folder) => {
+    const rel = relative(realpathSync(folder), draftPath);
+    return Boolean(rel) && !rel.startsWith('..') && !isAbsolute(rel);
+  };
+  if (inside(tmpdir()) && !inside(dirname(dirname(resolve(destination))))) rmSync(draft);
+  else console.error(`Draft kept: ${draft} is not a temporary file outside the audited target.`);
 } catch (error) {
   console.error(error.message);
   process.exitCode = 1;

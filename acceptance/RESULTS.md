@@ -2,6 +2,8 @@
 
 The run reports named below are kept out of the repository; only this summary is published.
 
+No run without the skill has been recorded yet, so these results do not yet show what the skill adds over a plain prompt. See [the comparison mode](README.md) of `run.sh`.
+
 ## 2026-11-21 — first full pass
 
 Cases 1 to 5, 7 and 8 were run by Claude Code (Claude Opus 5.5) in the session that wrote the skill and the fixture. **They are not blind**: the auditor knew the planted defects. They show that the skill's rules can produce the expected reports, not that a fresh agent finds everything. Case 6 was run blind with Codex.

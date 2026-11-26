@@ -43,3 +43,21 @@ test('an agent that writes one new report passes', { skip: !hasSh }, (t) => {
   assert.equal(result.status, 0, result.stderr);
   assert.match(log, /^ok exit=0 new: 2026-11-24_10-00-00-publications\.md $/m);
 });
+
+test('AUDIT_SKILL=none runs the case without the skill and without its invocation', { skip: !hasSh }, (t) => {
+  const dir = mkdtempSync(join(tmpdir(), 'audit-run-'));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const stub = join(dir, 'claude');
+  writeFileSync(stub, `#!/bin/sh\nprintf '%s' "$2" > ../prompt.txt\n[ -e .claude ] && echo installed > ../skill.txt\n${writeReport}\n`);
+  chmodSync(stub, 0o755);
+  const result = spawnSync('sh', [join(__dirname, 'run.sh'), 'cc', 'readme'], {
+    encoding: 'utf8',
+    env: { ...process.env, AUDIT_SKILL: 'none', AUDIT_RUNS: join(dir, 'runs'), PATH: `${dir}${delimiter}${process.env.PATH}` },
+  });
+  assert.equal(result.status, 0, result.stderr);
+  const base = join(dir, 'runs', 'cc-noskill');
+  const prompt = readFileSync(join(base, 'prompt.txt'), 'utf8');
+  assert.doesNotMatch(prompt, /\/audit/);
+  assert.match(prompt, /Write the report as one new Markdown file in audits\/\.$/);
+  assert.throws(() => readFileSync(join(base, 'skill.txt')));
+});

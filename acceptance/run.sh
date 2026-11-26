@@ -10,11 +10,13 @@ export MSYS2_ARG_CONV_EXCL="/audit;//"  # Git Bash: keep these arguments intact,
 TOOL=${1:?codex or cc}; CASE=${2:?case number}
 SRC=$(cd "$(dirname "$0")/.." && pwd)
 RUNS=${AUDIT_RUNS:-$SRC/../audit-runs}
-B="$RUNS/$TOOL"
+# AUDIT_SKILL=none runs the same case without the skill, as a comparison baseline, in $AUDIT_RUNS/<tool>-noskill.
+NOSKILL=$([ "${AUDIT_SKILL:-}" = none ] && echo 1 || true)
+B="$RUNS/$TOOL${NOSKILL:+-noskill}"
 mkdir -p "$B/logs"
 FAILED=0
 
-skill() { if [ "$TOOL" = codex ]; then d="$1/.agents/skills"; else d="$1/.claude/skills"; fi; mkdir -p "$d"; cp -r "$SRC/.agents/skills/audit" "$d/"; }
+skill() { [ -z "$NOSKILL" ] || return 0; if [ "$TOOL" = codex ]; then d="$1/.agents/skills"; else d="$1/.claude/skills"; fi; mkdir -p "$d"; cp -r "$SRC/.agents/skills/audit" "$d/"; }
 init() { (cd "$1" && git init -q -b main && git add . 2>/dev/null && git commit -qm "Initial state"); }
 mk() { R="$B/$1"; rm -rf "$R"; cp -r "$SRC/acceptance/fixture" "$R"; skill "$R"; init "$R"; }
 mkweb() { R="$B/$1"; rm -rf "$R"; cp -r "$SRC/acceptance/fixture-web" "$R"; skill "$R"; init "$R"; }
@@ -28,10 +30,12 @@ reports() { ls "$B/$1/audits" 2>/dev/null | grep '\.md$' | sort || true; }
 cx() { # cx <repo> <label> <prompt>
   echo "=== $(date +%T) $2: $3" >> "$B/logs/$1.txt"
   before=$(reports "$1"); st=0
+  if [ -n "$NOSKILL" ]; then p="$3 Write the report as one new Markdown file in audits/."
+  elif [ "$TOOL" = codex ]; then p="\$audit $3"; else p="/audit $3"; fi
   if [ "$TOOL" = codex ]; then
-    codex exec --skip-git-repo-check -s workspace-write -C "$B/$1" -o "$B/logs/$1-$2.last.txt" "\$audit $3" > "$B/logs/$1-$2.log" 2>&1 < /dev/null || st=$?
+    codex exec --skip-git-repo-check -s workspace-write -C "$B/$1" -o "$B/logs/$1-$2.last.txt" "$p" > "$B/logs/$1-$2.log" 2>&1 < /dev/null || st=$?
   else
-    (cd "$B/$1" && claude -p "/audit $3" --setting-sources project,local --no-session-persistence \
+    (cd "$B/$1" && claude -p "$p" --setting-sources project,local --no-session-persistence \
       --permission-mode acceptEdits \
       --allowedTools Read Grep Glob Write Edit "Bash(git:*)" "Bash(node:*)" "Bash(npm:*)" "Bash(ls:*)" \
         "Bash(cat:*)" "Bash(mkdir:*)" "Bash(date:*)" "Bash(test:*)" "Bash(head:*)" "Bash(wc:*)" \

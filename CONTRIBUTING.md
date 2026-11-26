@@ -25,4 +25,4 @@ To try the skill on a project, install your working copy with `npx skills add <p
 
 ## Release
 
-Bump `metadata.version` in `SKILL.md` and add an entry to `CHANGELOG.md`. Raise the major version when the grid or the report format changes in a way that makes earlier reports unfit as a baseline.
+Bump `metadata.version` in `SKILL.md` and add an entry to `CHANGELOG.md`. Raise the major version when the checker starts rejecting reports of the previous format. Earlier reports stay usable as a baseline unless the grid rows or the finding heading change; say so in `references/tracking.md` when they do.

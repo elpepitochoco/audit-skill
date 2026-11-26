@@ -123,14 +123,26 @@ test('publishes the validated bytes using the destination name for validation', 
   t.after(() => rmSync(directory, { recursive: true }));
 
   const draft = join(directory, 'working-draft.txt');
-  const destination = join(directory, 'audits', reportName);
+  const destination = join(directory, 'project', 'audits', reportName);
+  mkdirSync(join(directory, 'project'));
   const contents = Buffer.from(completeReport.replaceAll('\n', '\r\n'));
   writeFileSync(draft, contents);
 
   const { stdout } = await run(process.execPath, [publisher, '--check', draft, destination]);
   assert.equal(stdout.trim(), destination);
   assert.deepEqual(readFileSync(destination), contents);
-  assert.deepEqual(readdirSync(directory), ['audits'], 'the published draft is removed');
+  assert.deepEqual(readdirSync(directory), ['project'], 'the published draft is removed');
+});
+
+test('keeps a draft inside an audited project that lives in the temp folder', async (t) => {
+  const project = mkdtempSync(join(tmpdir(), 'audit-publish-'));
+  t.after(() => rmSync(project, { recursive: true }));
+  const draft = join(project, 'notes.md');
+  writeFileSync(draft, completeReport);
+
+  const { stderr } = await run(process.execPath, [publisher, '--check', draft, join(project, 'audits', reportName)]);
+  assert.match(stderr, /Draft kept/);
+  assert.equal(readFileSync(draft, 'utf8'), completeReport);
 });
 
 test('creates the audits directory and uses the unsuffixed name on the first run', async (t) => {
@@ -250,4 +262,5 @@ test('publishes without overwriting when the file system has no hard links', asy
   assert.equal(stdout.trim(), join(directory, 'audits', reportName.replace('.md', '-2.md')));
   assert.equal(readFileSync(join(directory, 'audits', reportName), 'utf8'), 'earlier report\n');
   assert.equal(readFileSync(stdout.trim(), 'utf8'), completeReport);
+  assert.deepEqual(readdirSync(join(directory, 'audits')).sort(), [reportName, reportName.replace('.md', '-2.md')].sort(), 'no lock or temporary file is left');
 });
