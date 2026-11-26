@@ -4,6 +4,7 @@
 
 - `.agents/skills/audit/` is the skill, the only folder users install. `SKILL.md` is the entry point, `references/` holds the rules it loads, `scripts/` the optional Node.js helpers.
 - `tests/` checks the scripts and the example reports. `examples/` holds complete reports that pass the checker.
+- `acceptance/` is the benchmark: test cases with planted defects ([README](acceptance/README.md)), the fictional projects they audit, `run.sh` to run a case with an agent, a scorer, and the results so far ([RESULTS.md](acceptance/RESULTS.md)). Run reports are not published.
 
 ## Rules for changes
 
@@ -15,7 +16,7 @@
 ## Check a change
 
 ```sh
-node --test "tests/*.test.js"
+node --test "tests/*.test.js" "acceptance/*.test.js"
 ```
 
 Node.js 22 or later runs the tests; the scripts themselves need 18.14. CI runs the same command on Linux, macOS and Windows.

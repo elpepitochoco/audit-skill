@@ -1,0 +1,44 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Newsletter</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header>
+    <img src="logo.svg" width="120" height="40">
+    <div class="menu-button" onclick="toggleMenu()">Menu</div>
+    <nav class="menu">
+      <a href="archive.html">Archive</a>
+      <a href="contact.html">Contact</a>
+    </nav>
+  </header>
+
+  <main>
+    <h1>Our newsletter</h1>
+    <h4>Why subscribe</h4>
+    <p class="muted">One e-mail a month with product news. Unsubscribe at any time.</p>
+
+    <form id="signup" novalidate>
+      <input id="email" type="email" placeholder="E-mail address">
+      <span id="email-error" class="error" hidden>Enter a valid e-mail address.</span>
+      <button type="submit">Subscribe</button>
+    </form>
+
+    <p id="greeting"></p>
+    <button type="button" id="open-terms">Read the terms</button>
+  </main>
+
+  <div id="terms" class="modal" hidden>
+    <h2>Terms</h2>
+    <p>We keep your address until you unsubscribe.</p>
+    <button type="button" id="close-terms">Close</button>
+  </div>
+
+  <div id="toast" class="toast"></div>
+
+  <script src="app.js"></script>
+</body>
+</html>

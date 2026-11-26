@@ -9,6 +9,11 @@ const test = require('node:test');
 const checker = join(__dirname, '..', '.agents', 'skills', 'audit', 'scripts', 'check-report.cjs');
 const { check } = require(checker);
 
+const coverage = `Read the README example and checked it against the implementation.
+- **Files** 1 in scope: 1 read in full, 0 sampled, 0 not read
+- **Sub-categories** 1 assessed, 0 not applicable, 0 not assessed
+- **Criteria** 1 assessed, 0 not applicable, 0 not assessed
+`;
 const validReport = `- **Date** 2026-11-23 10:00:00 +01:00
 - **Branch / commit** main / no commit yet
 - **Local changes** README.md is untracked
@@ -35,8 +40,7 @@ const validReport = `- **Date** 2026-11-23 10:00:00 +01:00
 
 ## Coverage and limitations
 
-Read the README example and checked it against the implementation.
-`;
+${coverage}`;
 const findingBlock = validReport.slice(
   validReport.indexOf('### DOC-01'),
   validReport.indexOf('## Coverage and limitations'),
@@ -108,7 +112,7 @@ test('rejects repeated sections', (t) => {
 });
 
 test('rejects a coverage heading with no coverage below it', (t) => {
-  const report = validReport.replace('Read the README example and checked it against the implementation.\n', ' \t\n');
+  const report = validReport.replace(coverage, ' \t\n');
   assert.ok(checkText(t, report).some(error => error.includes('Coverage and limitations is empty')));
 });
 
@@ -282,7 +286,7 @@ test('does not count section headings hidden in HTML comments', (t) => {
 });
 
 test('does not count a comment as coverage or hide text following a fenced comment example', (t) => {
-  const placeholder = 'Read the README example and checked it against the implementation.';
+  const placeholder = coverage;
   const commented = validReport.replace(placeholder, '<!-- Fill in coverage later. -->');
   assert.ok(checkText(t, commented).some(error => error.includes('Coverage and limitations is empty')));
 
@@ -659,4 +663,14 @@ test('accepts a supplied criterion as the finding category only in supplied crit
 test('the example reports pass the checker', () => {
   const run = spawnSync(process.execPath, [checker, join(__dirname, '..', 'examples')], { encoding: 'utf8' });
   assert.equal(run.status, 0, run.stdout);
+});
+
+test('coverage needs the Files count and the count that matches the criteria mode', (t) => {
+  const noFiles = validReport.replace(/^- \*\*Files\*\*.*\n/m, '');
+  assert.ok(checkText(t, noFiles).some(error => error.includes('**Files** bullet')));
+  const builtIn = validReport.replace('**Criteria mode** supplied criteria only', '**Criteria mode** built-in grid')
+    .replace(/^- \*\*Sub-categories\*\*.*\n/m, '');
+  assert.ok(checkText(t, builtIn).some(error => error.includes('**Sub-categories** bullet')));
+  const noCriteria = validReport.replace(/^- \*\*Criteria\*\* 1.*\n/m, '');
+  assert.ok(checkText(t, noCriteria).some(error => error.includes('**Criteria** bullet')));
 });

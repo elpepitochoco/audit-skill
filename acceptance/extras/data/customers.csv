@@ -1,0 +1,9 @@
+id,name,email,birth_date,age,country,card_number,signup_date
+1001,Alice Martin,alice.martin@example.test,1990-04-12,35,FR,4532019384756200,2025-01-03
+1002,Bob Lee,bob.lee@example.test,1985-11-30,40,US,5273849102637484,2025-01-05
+1003,Chen Wei,,1992-07-08,33,CN,,2025-01-09
+1004,Dana Cruz,dana.cruz@example.test,2031-02-14,-6,ES,4916273840159378,2025-01-11
+1002,Bob Lee,bob.lee@example.test,1985-11-30,40,US,5273849102637484,2025-01-05
+1005,Eve Adams,eve.adams@example,1978-13-01,47,France,,2025-01-15
+1006,Farid Haddad,farid.haddad@example.test,1999-09-21,26,fr,4483920174658291,2025-01-18
+1007,Gina Rossi,gina.rossi@example.test,1988-03-03,37,IT,,01/20/2025

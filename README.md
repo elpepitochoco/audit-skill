@@ -61,7 +61,7 @@ Each run writes a report in `audits/` with findings ranked by priority, their ev
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) and [CHANGELOG.md](CHANGELOG.md).
+See [CONTRIBUTING.md](CONTRIBUTING.md) and [CHANGELOG.md](CHANGELOG.md). Benchmark results are in [acceptance/RESULTS.md](acceptance/RESULTS.md).
 
 ## License
 

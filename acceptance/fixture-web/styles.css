@@ -1,0 +1,9 @@
+body { font-family: sans-serif; color: #222; background: #fff; }
+.muted { color: #aaa; }
+.menu-button { cursor: pointer; padding: 8px; }
+.menu { display: none; }
+.menu-open .menu { display: block; }
+button:focus, input:focus { outline: none; }
+.error { color: #c00; }
+.modal { position: fixed; inset: 20%; background: #fff; border: 1px solid #ccc; padding: 16px; }
+.toast { position: fixed; bottom: 16px; right: 16px; }

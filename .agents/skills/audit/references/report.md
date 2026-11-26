@@ -31,7 +31,9 @@ Use these section headings verbatim: Summary, Findings, Planned later, Changes s
 3. **Findings**. Order active findings by priority, then by impact. Fixed entries may follow the active findings.
 4. **Planned later** closures.
 5. **Changes since baseline** (see [tracking.md](tracking.md)), when a comparison exists. Explain the re-check for findings marked Still present, Fixed, Not reverified or Reappeared.
-6. **Coverage and limitations**: checks run with results, samples, checks not run with the reason, sub-categories not applicable. When the scope is too large to read entirely, say what was read in full, what was sampled and how, and what was not read.
+6. **Coverage and limitations**: start with two count bullets, then checks run with results, samples, checks not run with the reason, sub-categories not applicable. When the scope is too large to read entirely, say what was read in full, what was sampled and how, and what was not read.
+   - **Files** `<n> in scope: <n> read in full, <n> sampled, <n> not read`. For material that is not files (records, log entries, pages), count those items and name the unit.
+   - **Sub-categories** `<n> assessed, <n> not applicable, <n> not assessed`, counted over the grid rows in scope. In **supplied criteria only** mode, use **Criteria** instead and count the supplied criteria.
 
 ## Finding format
 

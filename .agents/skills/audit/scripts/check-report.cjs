@@ -206,6 +206,13 @@ function checkBytes(bytes, file, forbid = []) {
   const coverageHeading = sectionNames.indexOf(COVERAGE_SECTION);
   if (coverageHeading >= 0 && !body(COVERAGE_SECTION, sourceLines).some((line) => line.trim())) {
     errors.push('Coverage and limitations is empty');
+  } else if (coverageHeading >= 0) {
+    const coverage = body(COVERAGE_SECTION);
+    for (const label of ['Files', suppliedOnly ? 'Criteria' : 'Sub-categories']) {
+      if (!coverage.some((line) => line.startsWith(`- **${label}**`) && /\d/.test(line))) {
+        errors.push(`Coverage and limitations needs a **${label}** bullet with counts`);
+      }
+    }
   }
 
   // Findings: heading format, grid pairs, unique IDs, required bullets.

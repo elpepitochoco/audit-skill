@@ -1,0 +1,12 @@
+{
+  "users": [
+    { "id": "u1", "orgId": "org-a", "role": "admin", "email": "alice@example.test" },
+    { "id": "u2", "orgId": "org-b", "role": "member", "email": "bob@example.test" },
+    { "id": "u3", "orgId": "org-a", "role": "member", "email": "carol@example.test" }
+  ],
+  "invoices": [
+    { "id": "f1", "orgId": "org-a", "amount": 120 },
+    { "id": "f2", "orgId": "org-b", "amount": 80 },
+    { "id": "f3", "orgId": "org-a", "amount": 45 }
+  ]
+}

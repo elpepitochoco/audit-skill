@@ -33,6 +33,8 @@ No findings.
 ## Coverage and limitations
 
 Reviewed the supplied example.
+- **Files** 1 in scope: 1 read in full, 0 sampled, 0 not read
+- **Criteria** 1 assessed, 0 not applicable, 0 not assessed
 `;
 
 test('validates the current draft before creating the report directory', async (t) => {
@@ -43,7 +45,7 @@ test('validates the current draft before creating the report directory', async (
   const destination = join(directory, 'audits', reportName);
   writeFileSync(draft, completeReport);
   await run(process.execPath, [checker, draft]);
-  writeFileSync(draft, completeReport.replace('Reviewed the supplied example.\n', ''));
+  writeFileSync(draft, completeReport.slice(0, completeReport.indexOf('Reviewed the supplied example.')));
 
   await assert.rejects(run(process.execPath, [publisher, '--check', draft, destination]), {
     stderr: /Coverage and limitations is empty/,

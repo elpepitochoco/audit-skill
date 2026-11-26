@@ -1,0 +1,10 @@
+{
+  "name": "billing-demo",
+  "version": "0.3.0",
+  "private": true,
+  "type": "commonjs",
+  "scripts": {
+    "test": "node --test",
+    "seed": "node scripts/seed.js"
+  }
+}
