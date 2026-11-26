@@ -332,6 +332,8 @@ The logo shows the brand name as text, so it is informative. Also accepted: miss
 
 ## Real code
 
+The public benchmarks in [public.md](public.md) add eleven cases on public repositories whose defects are documented by their authors, scored with `score-public.js`.
+
 ### 27. Mature library
 
 1. Clone Express at tag `v5.1.0` (`git clone --depth 1 --branch v5.1.0 https://github.com/expressjs/express.git`), add the skill, and send "Audit the security of `lib/`."

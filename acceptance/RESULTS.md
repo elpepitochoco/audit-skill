@@ -558,3 +558,30 @@ Fixes before the replay, from the cross-branch audits in `audits/` (`2026-11-24_
 **Claude Code: cases 1, 2, 4, 5 and 7 pass** (case 1: 11 of 11), then the monthly spend limit stopped every later step; the runner reported each one as FAIL. Resumed on 2026-11-25: cases 8 to 30 (27 and 34 included) pass with Claude Code; cases 9 and 14 add the accepted Low finding on a caller without `orgId`. A first resume collided with a stopped loop on `c8`, then reran cleanly. Cases 31 to 41, the README example and cases 42, 44, 59 and 76 then passed with Claude Code on 2026-11-26, which completes the replay with both tools. The common cases pass with `git-scope.md` loaded, with the same results as before the merge, so no instruction was cut (CDX-03).
 
 One calibration gap: Claude Code rated the unverifiable approvals of case 37 **Informational** "because the evidence lives outside the repository". `criteria.md` now says a point to verify is rated by the impact the gap would have if confirmed, since the To verify certainty already records the missing evidence. Re-run: Medium with both tools; case 13 stays High with Claude Code. Codex again files the case 37 tag mismatch under Quality / Data integrity, now accepted.
+
+## 2026-11-26 — public benchmarks
+
+Reports: runs/2026-11-26-public/. First blind run of the eleven cases in [public.md](public.md), skill 2.2.0, one run per case and tool: Claude Code 2.1.332 (Claude Opus 5.5) and Codex CLI 0.172.0. All 22 reports pass the format check. Scores come from `score-public.js`; every miss and every doubtful match was checked by hand, and the corrected count is given when it differs.
+
+| Case | Audit type | Claude Code | Codex |
+| --- | --- | --- | --- |
+| `nodegoat` | Security, web app | 15/15, 30 findings | 14/15, 22 findings (no security-header finding) |
+| `juiceshop` | Security, `routes/` | 13/14, 34 findings (no XXE finding) | **3/14**, 8 findings |
+| `benchmark` | Security, false positives | TPR 11/11, FPR 1/11, score 91% | TPR 11/11, FPR 2/11 by hand (scored 10/11 and 4/11), score 82%; the `BenchmarkTest00004` finding cites no file |
+| `leaky` | Secrets | 43/43 | 43/43 |
+| `actions` | CI configuration | 5/5 | 5/5 |
+| `goof` | Dependencies | 12/12 | 8/12 (no mongoose, ms, dustjs or express-fileupload) |
+| `terragoat` | Infrastructure as code | 12/12 | 12/12 |
+| `quixbugs` | Behavior, 40 one-line bugs | 40/40 | 40/40 |
+| `hospital` | Data quality | 3/3, 510 of 509 corrupted cells counted | 3/3, **not blind** |
+| `bad` | Accessibility, WCAG A and AA | 16/19 | 13/19 |
+| `nplus` | Performance | 3/3 | 3/3 |
+
+Lessons for the next skill changes:
+
+- **Codex declines to report the flaws of a training application.** On Juice Shop it read the challenge names in the code, called the injections "intentional exercises" and reported deployment isolation instead: no finding for the SQL injections in `login.ts` and `search.ts`, the SSRF, the null-byte bypass, the basket IDOR or the `eval` in `userProfile.ts`. Claude Code reported them "as they stand" and noted the training context once. The skill should say that a deliberate or documented flaw is still a gap against the criteria.
+- **A run with web access can find the answers.** Codex located HoloClean's clean copy of `hospital.csv` and diffed against it. The scorer now warns when a report cites a known answer source.
+- **Accessibility misses page titles, focus order and consistent identification** with both tools (WCAG 2.4.2, 2.4.3, 3.2.4). Codex also missed images of text (1.4.5) and focus changes on `onfocus` (3.2.1) as criteria, though it cited the `blur()` handlers.
+- **Dependencies**: Codex matched 77 Snyk rules against the lockfile but reported only the packages it judged reachable, leaving four documented exploitable packages out.
+- **Benchmark false alarms** are close calls: Claude Code flagged the small range of `BenchmarkTest00010`'s remember-me token, and Codex flagged the unsalted SHA-384 of `BenchmarkTest00009`. The Benchmark counts both servlets as safe for their category.
+- Keyword scoring under-counts Codex, whose titles describe effects ("Allocation reads lack a record ownership check") rather than vulnerability classes. Several patterns were widened after reading its reports.

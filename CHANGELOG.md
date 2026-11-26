@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Benchmark: eleven public cases with published answers (OWASP NodeGoat, Juice Shop and Benchmark, leaky-repo, GitHub Actions Goat, nodejs-goof, TerraGoat, QuixBugs, the Raha hospital dataset, the W3C Before and After Demonstration, n-plus) cover every audit axis except Operability logging and recovery. `run.sh` fetches each at a pinned commit and removes its answer key; `score-public.js` scores the report. Results in `acceptance/RESULTS.md`.
+
 ## 2.2.0
 
 - Lighter rules: a first audit loads 17.9 KB instead of 27.5 KB. Rare cases (criteria conflicts, supplied criteria only, deeper audit, missing target, folder outside Git, sampled data, early-stopping checks) moved to `references/special-cases.md`, read on demand; `tracking.md` is read only when earlier reports exist; publication rules condensed. Checked on four benchmark cases with Claude Code and Codex: same findings, fewer tokens.

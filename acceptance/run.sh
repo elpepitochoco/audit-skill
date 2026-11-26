@@ -1,9 +1,10 @@
 #!/bin/sh
 # Run one acceptance case blind with Codex or Claude Code.
-# Usage: sh acceptance/run.sh <codex|cc> <case>     case: a number from acceptance/README.md, or "readme"
+# Usage: sh acceptance/run.sh <codex|cc> <case>     case: a number from acceptance/README.md, "readme", or a name from acceptance/public.md
 # Each case starts from a fresh copy in $AUDIT_RUNS/<tool>/<case> (default: ../audit-runs next to this repository).
 # Logs go to $AUDIT_RUNS/<tool>/logs. Check the reports with check-report.js and judge them against README.md.
 # Exit status: 0 only if setup succeeded and every agent step exited 0 and wrote exactly one new report in audits/.
+# Public benchmark cases (nodegoat, juiceshop, ..., see acceptance/public.md) fetch pinned commits into $AUDIT_RUNS/src (network).
 # Cases 27, 33, 34 and 39 clone Express once into $AUDIT_RUNS/express-src (network). Case 34 continues case 27's repository.
 set -eu
 export MSYS2_ARG_CONV_EXCL="/audit;//"  # Git Bash: keep these arguments intact, still convert /d/... paths
@@ -25,6 +26,16 @@ express() { # express <dest>: copy of Express v5.1.0 with the skill
   [ -d "$RUNS/express-src" ] || git clone -q --depth 1 --branch v5.1.0 https://github.com/expressjs/express.git "$RUNS/express-src"
   cp -r "$RUNS/express-src" "$1"
 }
+pub() { # pub <dest> <owner/repo> <commit>: copy of a pinned public commit with the skill, not yet committed (see pinit)
+  S="$RUNS/src/${2##*/}"
+  [ -d "$S/.git" ] || { git init -q "$S" && git -C "$S" config core.longpaths true \
+    && git -C "$S" fetch -q --depth 1 "https://github.com/$2.git" "$3" && git -C "$S" checkout -q FETCH_HEAD; }
+  [ "$(git -C "$S" rev-parse HEAD)" = "$3" ] || { echo "$S is not at $3" >&2; exit 2; }
+  R="$B/$1"; rm -rf "$R"; cp -r "$S" "$R"; rm -rf "$R/.git"; skill "$R"
+}
+# The caller removes the benchmark's answer key (solutions, scanner output, vulnerability markers) between pub and pinit.
+pinit() { (cd "$R" && git init -q -b main && git config core.longpaths true && git add . 2>/dev/null && git commit -qm "Initial state"); }
+export NPM_CONFIG_IGNORE_SCRIPTS=true  # an agent that installs a benchmark's dependencies must not run their install scripts
 nosummary() { node -e 'const fs=require("fs");const f=process.argv[1];const s=fs.readFileSync(f,"utf8");const o=s.replace(/## Summary[\s\S]*?(?=\n## )/,"");if(o===s)throw new Error("no Summary in "+f);fs.writeFileSync(f,o)' "$1"; }
 reports() { ls "$B/$1/audits" 2>/dev/null | grep '\.md$' | sort || true; }
 cx() { # cx <repo> <label> <prompt>
@@ -38,7 +49,7 @@ cx() { # cx <repo> <label> <prompt>
     (cd "$B/$1" && claude -p "$p" --setting-sources project,local --no-session-persistence \
       --permission-mode acceptEdits \
       --allowedTools Read Grep Glob Write Edit "Bash(git:*)" "Bash(node:*)" "Bash(npm:*)" "Bash(ls:*)" \
-        "Bash(cat:*)" "Bash(mkdir:*)" "Bash(date:*)" "Bash(test:*)" "Bash(head:*)" "Bash(wc:*)" \
+        "Bash(cat:*)" "Bash(mkdir:*)" "Bash(date:*)" "Bash(test:*)" "Bash(head:*)" "Bash(wc:*)" "Bash(python:*)" "Bash(pytest:*)" \
       > "$B/logs/$1-$2.last.txt" 2> "$B/logs/$1-$2.log" < /dev/null) || st=$?
   fi
   # Count only reports that did not exist before this step, so an earlier report cannot pass for this one.
@@ -378,6 +389,59 @@ EOF
   cx c76 s1 "$P"
   printf 'Release lead decision: defer the missing preview script until release v1.2. Release v1.2 is pending.\n' > "$R/ROADMAP.md"
   cx c76 s2 "$P"
+  ;;
+nodegoat)
+  pub nodegoat OWASP/NodeGoat c5cb68a7084e4ae7dcc60e6a98768720a81841e8; rm -rf "$R/app/views/tutorial"; pinit
+  cx nodegoat run "Audit the security of this application."
+  ;;
+juiceshop)
+  pub juiceshop juice-shop/juice-shop c9f99228d9d56afb5f5ca7925376292f7fa44b13; rm -rf "$R/data/static/codefixes"
+  grep -rl "vuln-code-snippet" "$R" --include=*.ts | while read -r f; do sed -i.bak 's| *// vuln-code-snippet.*||' "$f" && rm "$f.bak"; done
+  pinit; cx juiceshop run "Audit the security of \`routes/\`."
+  ;;
+benchmark)
+  pub benchmark OWASP-Benchmark/BenchmarkJava 10dfcc54ad02dcfcb358b0ba4a0fef8c919a6d17; rm -rf "$R"/expectedresults-*.csv "$R/results" "$R/scorecard"; pinit
+  # The first real and the first false vulnerability of each of the 11 categories in expectedresults-1.2.csv.
+  T=$(for n in 00001 00003 00004 00005 00006 00008 00009 00010 00012 00013 00016 00023 00051 00052 00054 00063 00087 00097 00116 00138 00147 00207; do printf 'BenchmarkTest%s.java, ' $n; done)
+  cx benchmark run "Audit the security of these servlets in \`src/main/java/org/owasp/benchmark/testcode/\`: ${T%, }."
+  ;;
+leaky)
+  pub leaky Plazmaz/leaky-repo 2e951359cac53addbee56437da3ffb546e3dfe24; rm -rf "$R/README.md" "$R/.leaky-meta"; pinit
+  cx leaky run "Audit secrets and sensitive data in this repository."
+  ;;
+actions)
+  pub actions step-security/github-actions-goat 4da23c8602b4589bacdf7de77240113e02cdb884; rm -rf "$R/README.md" "$R/docs" "$R/images"; pinit
+  cx actions run "Audit the CI configuration."
+  ;;
+goof)
+  pub goof snyk-labs/nodejs-goof add14ba59e98240d9e00a235dd7d42cd61ae9912; rm -rf "$R/README.md" "$R/exploits" "$R/sarif.json"; pinit
+  cx goof run "Audit the project's dependencies."
+  ;;
+terragoat)
+  pub terragoat bridgecrewio/terragoat 729f8da62c6a85ce4af5ad3d123de97776d954c4; pinit
+  cx terragoat run "Audit the security of the AWS Terraform configuration in \`terraform/aws/\`."
+  ;;
+quixbugs)
+  pub quixbugs jkoppel/QuixBugs 4257f44b0ff1181dedaedee6a447e133219fcebf
+  (cd "$R" && rm -rf correct_java_programs correct_python_programs java_programs java_testcases README.md quixbugs.pdf final_progress.txt tester.py ./*.class ./*.java build.gradle _config.yml)
+  pinit; cx quixbugs run "Audit the behavior of the programs in \`python_programs/\` against their docstrings."
+  ;;
+hospital)
+  mkempty hospital
+  curl -sfL -o "$R/hospital.csv" https://raw.githubusercontent.com/BigDaMa/raha/7be1334b8c7bbdac3f47ef514fb3e1e8c5fc181c/datasets/hospital/dirty.csv
+  (cd "$R" && git add hospital.csv && git commit -qm "Hospital quality measures")
+  cx hospital run "Audit the data quality of hospital.csv."
+  ;;
+bad)
+  mkempty bad
+  for p in home news tickets survey; do curl -sfL -o "$R/$p.html" "https://www.w3.org/WAI/demos/bad/before/$p.html"; done
+  (cd "$R" && git add ./*.html && git commit -qm "Citylights site")
+  cx bad run "Audit the accessibility of the four pages in this repository."
+  ;;
+nplus)
+  pub nplus jwworth/n-plus d9f1f366c0d30e88157adc70f51fa1ff0590f3c2; rm "$R/README.md"
+  sed -i.bak '/^ *#/d' "$R/app/controllers/users_controller.rb" && rm "$R/app/controllers/users_controller.rb.bak"; pinit
+  cx nplus run "Audit the performance of this application."
   ;;
 readme)
   mkempty c11
