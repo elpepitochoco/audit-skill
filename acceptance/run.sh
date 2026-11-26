@@ -33,9 +33,10 @@ cx() { # cx <repo> <label> <prompt>
   if [ -n "$NOSKILL" ]; then p="$3 Write the report as one new Markdown file in audits/."
   elif [ "$TOOL" = codex ]; then p="\$audit $3"; else p="/audit $3"; fi
   if [ "$TOOL" = codex ]; then
-    codex exec --skip-git-repo-check -s workspace-write -C "$B/$1" -o "$B/logs/$1-$2.last.txt" "$p" > "$B/logs/$1-$2.log" 2>&1 < /dev/null || st=$?
+    codex exec --json --skip-git-repo-check -s workspace-write -C "$B/$1" -o "$B/logs/$1-$2.last.txt" "$p" > "$B/logs/$1-$2.log" 2>&1 < /dev/null || st=$?
   else
-    (cd "$B/$1" && claude -p "$p" --setting-sources project,local --no-session-persistence \
+    # JSON output records token usage and cost for the comparison between skill versions.
+    (cd "$B/$1" && claude -p "$p" --output-format json --setting-sources project,local --no-session-persistence \
       --permission-mode acceptEdits \
       --allowedTools Read Grep Glob Write Edit "Bash(git:*)" "Bash(node:*)" "Bash(npm:*)" "Bash(ls:*)" \
         "Bash(cat:*)" "Bash(mkdir:*)" "Bash(date:*)" "Bash(test:*)" "Bash(head:*)" "Bash(wc:*)" \
