@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.4.0
+
+- Incremental re-audit: `scripts/baseline-delta.cjs` compares the target with the commit the baseline audited and marks each open finding re-check or cited files unchanged. With unchanged criteria, a re-audit examines only the changed files and the findings they touch; the baseline is chosen before examining.
+- Report skeleton: `scripts/report-skeleton.cjs` writes a draft with the Date and UTC offset, branch and commit, local changes, skill version and section headings. `publish-report.cjs` fills a Summary row written as `auto` and refuses unfilled placeholders.
+- The pre-scan runs for repository, folder and secrets, dependencies or documentation scopes, not for a commit or a named check; a history lead is confirmed with one `git show`.
+- Benchmark: both modes get the same request (a case with no parameters asks for a whole-repository audit); `usage.js` reports cached, fresh and output tokens and turns; case 78 replays a re-audit after two fixes.
+
 ## 2.3.1
 
 - Pre-scan: never reads through a symbolic link, lists a file it cannot read under Not scanned instead of stopping, reports a malformed Markdown link instead of crashing, masks secrets in every section, says when `git log` failed, reads the patches of the newest 5,000 commits only and says so, and uses Git options available since 2.15.

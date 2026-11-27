@@ -14,6 +14,17 @@ A user decision that settles a conflict left open in the baseline keeps the base
 
 Look further back than the baseline in the compatible history only to find earlier IDs (for **Reappeared** and for numbering).
 
+## Incremental re-audit
+
+Choose the baseline before examining. When the scripts can run, run `node <skill-dir>/scripts/baseline-delta.cjs <target-root> <baseline-report>`; otherwise list the same changes with `git diff --name-status -M <baseline-commit>` and the untracked files. When it prints `Mode: incremental` and the applied criteria and references are unchanged (step 3 above):
+
+- Examine only the files it lists as changed, with what they affect (callers, configuration, documentation that describes them), and pass them to the pre-scan as path prefixes. New gaps can only come from these changes.
+- Re-check every open finding marked `re-check`.
+- A finding marked `cited files unchanged` whose cause lies in those files is re-checked by that unchanged evidence: mark it **Still present**, cite the baseline's evidence and "unchanged since `<commit>`". Re-check it in the code anyway when a changed file can affect it (a caller, a shared configuration, a dependency).
+- In **Coverage and limitations**, count the unchanged files as not read, "unchanged since `<commit>`, covered by `<baseline report>`". Name the baseline commit in **Changes since baseline**.
+
+When it prints `Mode: full audit required`, audit the whole scope as usual and give its reason in **Baseline**. The user can also ask for a full re-audit.
+
 ## Match findings
 
 Match by problem and logical location (function, section, rule), not by line number, so moved lines are not new findings. For a verified file move, carry over the matching finding ID and cite the new path as current evidence.

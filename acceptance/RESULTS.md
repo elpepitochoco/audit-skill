@@ -637,3 +637,15 @@ Lessons for the next skill changes:
 ## 2026-11-27 — Juice Shop with Codex after the deliberate-flaw rule (2.3.1)
 
 Reports: `../audit-runs/nc24/`. One blind run of `juiceshop` with Codex after 2.3.1 stated that a flaw the target calls deliberate is still a gap. Score: **14/14** (3/14 with 2.2.0), 69 findings, every planted flaw rated High or Critical except the open redirect and the prompt injection (Medium). The report notes the training intent in its corrections ("keep the training behavior in an isolated fixture") instead of dropping the findings. 3.0 M input tokens for 63 route files. One run: the change from 3/14 is far beyond run-to-run noise, but the rate of refusals is not measured.
+
+## 2026-11-27 — incremental re-audit, case 78 (2.4.0)
+
+Reports: `../audit-runs/incr/`. One run per tool: a full audit, then a commit adding a `start` script and the admin check on `deleteUser`, then the same audit again.
+
+| Tool | Step 1 fresh / out / turns | Step 2 fresh / out / turns | Step 2 total input vs step 1 |
+| --- | --- | --- | --- |
+| Claude Code | 35k / 11.5k / 14 | 44k / 13.8k / 27 | ×1.7 |
+| Codex | 30k / 6.1k / 15 | 35k / 7.7k / 20 | ×1.8 |
+
+- **Tracking is right** with both tools: the first report is the baseline, D2 is **Fixed** after a re-check, every other finding keeps its ID and is **Still present**, unchanged files are cited "unchanged since `<commit>`" (11 and 8 times), and all four reports pass the checker. Both kept D8 open at a lower priority: `npm start` now runs `node src/billing.js`, which loads a library and exits, a defensible reading.
+- **It is not cheaper.** The re-audit reads the whole baseline report (16.5 KB for Codex) and rewrites every carried finding with its full Expected, Observed and Impact bullets (16 of 16 for Codex), so it costs more than the first audit even when only two files changed. Reading only the changed files saves little against that.

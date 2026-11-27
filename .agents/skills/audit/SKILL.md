@@ -3,7 +3,7 @@ name: audit
 description: Audit a repository or a defined target against explicit criteria and write an evidenced, prioritized Markdown report in audits/, tracked across runs. Use for requested audits of code, architecture, security, documentation, accessibility, data, or processes, including defensive code and configuration reviews, audits of a commit or diff against its stated goal, performance or operability audits on request, and re-audits that check earlier findings.
 license: MIT
 metadata:
-  version: "2.3.1"
+  version: "2.4.0"
 ---
 
 # Audit
@@ -32,6 +32,7 @@ An audit is read-only on the target. The only file it writes is the new report. 
 
 ## 3. Examine
 
+- If `audits/` holds earlier reports, pick the baseline first with [references/tracking.md](references/tracking.md). When its incremental re-audit applies, it sets which files and findings to examine.
 - Pre-scan for a whole repository, a folder or module, or a scope that includes secrets, dependencies or documentation. Skip it for a commit or diff and for a check that names its files and criterion (one command, function, record or requirement); read those files directly. When `scripts/` is installed and Node.js 18.14 or later is available, run `node <skill-dir>/scripts/scan.cjs <target-root> [<path-prefix>...]`, passing the in-scope folders or files as prefixes. It prints leads for secrets in the tree and the Git history, documented commands and links with no target, unpinned dependencies, vendored files and source files no test names, plus the file count for Coverage. Confirm each lead in the source before reporting it, and use the list to decide what to read first, not as the whole examination. A history lead already gives the file, commit and masked type: confirm it with one `git show <commit> -- <file>` rather than searching the history again. Without Node.js, or if the scan fails, make the same checks by reading and record the failure in Coverage and limitations. Check by hand what its output lists as not scanned or not checked, and the history it says it did not check.
 - Read the relevant code, configuration, documentation and tests first. For security, review white-box: trace each control in the implementation and use existing tests to see what is covered.
 - Before running a check (tests, lint, type check, local UI check), read the command and its configuration. Run it only in a mode that preserves working files and data, or isolate writes in a test environment. If its effects stay uncertain, do not run it: record it as not executed, with the reason.
@@ -45,7 +46,7 @@ Follow [references/report.md](references/report.md) for the file name, required 
 
 ## 5. Compare with the previous report
 
-If `audits/` holds no earlier report, write "None: first audit" in **Baseline** and skip this step. Otherwise follow [references/tracking.md](references/tracking.md) to pick the baseline report, match findings and set their status.
+If `audits/` holds no earlier report, write "None: first audit" in **Baseline** and skip this step. Otherwise, with the baseline picked in step 3, follow [references/tracking.md](references/tracking.md) to match findings and set their status.
 
 ## 6. Deliver
 

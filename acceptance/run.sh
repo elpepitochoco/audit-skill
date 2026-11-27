@@ -407,6 +407,17 @@ EOF
   log 32 130
   cx c77 run ""
   ;;
+78)
+  # Incremental re-audit: a full audit, two committed fixes, then the same audit again.
+  mk c78
+  cx c78 s1 ""
+  ed c78 package.json '"scripts": {' '"scripts": {
+    "start": "node src/billing.js",'
+  ed c78 src/users.js "function deleteUser(data, actor, userId) {" "function deleteUser(data, actor, userId) {
+  if (actor.role !== 'admin') throw new Error('forbidden');"
+  commit c78 "Add start script and admin check on delete"
+  cx c78 s2 ""
+  ;;
 nodegoat)
   pub nodegoat OWASP/NodeGoat c5cb68a7084e4ae7dcc60e6a98768720a81841e8; rm -rf "$R/app/views/tutorial"; pinit
   cx nodegoat run "Audit the security of this application."

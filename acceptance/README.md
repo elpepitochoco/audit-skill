@@ -689,3 +689,9 @@ Cases 42 to 76 come from the `codex` branch, where they were numbered 22 to 56. 
 1. In a fresh billing fixture, make 30 release commits that only append to `CHANGES.md`. Add `deploy/smoke.sh` holding `STRIPE_KEY=sk_live_…` (32 characters) and commit "Add deploy smoke check". Make one more release commit, then delete `deploy/` with the message "Tidy deploy folder". Add 99 more release commits.
 2. Run `audit` with no parameters.
 3. Expect, besides D1 to D11, a **Critical** Security / Secrets and sensitive data finding for the key in `deploy/smoke.sh`, citing the commit that added it, with rotation as the correction and the key masked. Nothing in the current tree mentions the file. Check with `--forbid "sk_live_Rk82|pk_prod_7Hq|[a-z]+@example.test"`.
+
+### 78. Incremental re-audit after two fixes
+
+1. In a fresh billing fixture, run `audit` with no parameters.
+2. Add a `start` script to `package.json` and the admin check to `deleteUser` in `src/users.js`, and commit. Run `audit` with no parameters again.
+3. Expect the first report as baseline and an incremental re-audit from its commit: D2 and D8 **Fixed** after a re-check, D7 and D11 re-checked in the changed `src/users.js`, the findings on unchanged files (D1, D3, D4, D5, D10) **Still present** from unchanged evidence, and the unchanged files counted as not read in Coverage. Compare the input and output tokens of the two steps with `usage.js`.
