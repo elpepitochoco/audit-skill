@@ -41,8 +41,10 @@ reports() { ls "$B/$1/audits" 2>/dev/null | grep '\.md$' | sort || true; }
 cx() { # cx <repo> <label> <prompt>
   echo "=== $(date +%T) $2: $3" >> "$B/logs/$1.txt"
   before=$(reports "$1"); st=0
-  if [ -n "$NOSKILL" ]; then p="$3 Write the report as one new Markdown file in audits/."
-  elif [ "$TOOL" = codex ]; then p="\$audit $3"; else p="/audit $3"; fi
+  # Both modes get the same request; a case with no parameters is a whole-repository audit.
+  q=${3:-Audit this repository.}
+  if [ -n "$NOSKILL" ]; then p="$q Write the report as one new Markdown file in audits/."
+  elif [ "$TOOL" = codex ]; then p="\$audit $q"; else p="/audit $q"; fi
   if [ "$TOOL" = codex ]; then
     codex exec --json --skip-git-repo-check -s workspace-write -C "$B/$1" -o "$B/logs/$1-$2.last.txt" "$p" > "$B/logs/$1-$2.log" 2>&1 < /dev/null || st=$?
   else

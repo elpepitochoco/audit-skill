@@ -61,3 +61,18 @@ test('AUDIT_SKILL=none runs the case without the skill and without its invocatio
   assert.match(prompt, /Write the report as one new Markdown file in audits\/\.$/);
   assert.throws(() => readFileSync(join(base, 'skill.txt')));
 });
+
+test('a case with no parameters asks both modes for a whole-repository audit', { skip: !hasSh }, (t) => {
+  const dir = mkdtempSync(join(tmpdir(), 'audit-run-'));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  writeFileSync(join(dir, 'claude'), `#!/bin/sh\nprintf '%s' "$2" > ../prompt.txt\n${writeReport}\n`);
+  chmodSync(join(dir, 'claude'), 0o755);
+  for (const [mode, expected] of [['', /^\/audit Audit this repository\.$/], ['none', /^Audit this repository\. Write the report/]]) {
+    const result = spawnSync('sh', [join(__dirname, 'run.sh'), 'cc', '1'], {
+      encoding: 'utf8',
+      env: { ...process.env, AUDIT_SKILL: mode, AUDIT_RUNS: join(dir, 'runs'), PATH: `${dir}${delimiter}${process.env.PATH}` },
+    });
+    assert.equal(result.status, 0, result.stderr);
+    assert.match(readFileSync(join(dir, 'runs', mode ? 'cc-noskill' : 'cc', 'prompt.txt'), 'utf8'), expected);
+  }
+});
