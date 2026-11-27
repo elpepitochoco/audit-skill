@@ -3,7 +3,7 @@ name: audit
 description: Audit a repository or a defined target against explicit criteria and write an evidenced, prioritized Markdown report in audits/, tracked across runs. Use for requested audits of code, architecture, security, documentation, accessibility, data, or processes, including defensive code and configuration reviews, audits of a commit or diff against its stated goal, performance or operability audits on request, and re-audits that check earlier findings.
 license: MIT
 metadata:
-  version: "2.2.0"
+  version: "2.3.0"
 ---
 
 # Audit
@@ -31,6 +31,7 @@ An audit is read-only on the target. The only file it writes is the new report. 
 
 ## 3. Examine
 
+- When `scripts/` is installed and Node.js 18.14 or later is available, start with `node <skill-dir>/scripts/scan.cjs <target-root> [<path-prefix>...]`, passing the in-scope folders or files as prefixes. It prints leads for secrets in the tree and the Git history, documented commands and links with no target, unpinned dependencies, vendored files and source files no test names, plus the file count for Coverage. Confirm each lead in the source before reporting it, and use the list to decide what to read first, not as the whole examination. Without Node.js, make the same checks by reading.
 - Read the relevant code, configuration, documentation and tests first. For security, review white-box: trace each control in the implementation and use existing tests to see what is covered.
 - Before running a check (tests, lint, type check, local UI check), read the command and its configuration. Run it only in a mode that preserves working files and data, or isolate writes in a test environment. If its effects stay uncertain, do not run it: record it as not executed, with the reason.
 - Compare what the documentation claims (commands, behaviors, stated standards or guarantees) with what you observed.

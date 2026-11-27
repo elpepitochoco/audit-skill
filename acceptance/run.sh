@@ -44,9 +44,9 @@ cx() { # cx <repo> <label> <prompt>
   if [ -n "$NOSKILL" ]; then p="$3 Write the report as one new Markdown file in audits/."
   elif [ "$TOOL" = codex ]; then p="\$audit $3"; else p="/audit $3"; fi
   if [ "$TOOL" = codex ]; then
-    codex exec --skip-git-repo-check -s workspace-write -C "$B/$1" -o "$B/logs/$1-$2.last.txt" "$p" > "$B/logs/$1-$2.log" 2>&1 < /dev/null || st=$?
+    codex exec --json --skip-git-repo-check -s workspace-write -C "$B/$1" -o "$B/logs/$1-$2.last.txt" "$p" > "$B/logs/$1-$2.log" 2>&1 < /dev/null || st=$?
   else
-    (cd "$B/$1" && claude -p "$p" --setting-sources project,local --no-session-persistence \
+    (cd "$B/$1" && claude -p "$p" --output-format json --setting-sources project,local --no-session-persistence \
       --permission-mode acceptEdits \
       --allowedTools Read Grep Glob Write Edit "Bash(git:*)" "Bash(node:*)" "Bash(npm:*)" "Bash(ls:*)" \
         "Bash(cat:*)" "Bash(mkdir:*)" "Bash(date:*)" "Bash(test:*)" "Bash(head:*)" "Bash(wc:*)" "Bash(python:*)" "Bash(pytest:*)" \
@@ -389,6 +389,20 @@ EOF
   cx c76 s1 "$P"
   printf 'Release lead decision: defer the missing preview script until release v1.2. Release v1.2 is pending.\n' > "$R/ROADMAP.md"
   cx c76 s2 "$P"
+  ;;
+77)
+  # A live key lived for 2 commits in a file deleted ~100 commits ago; nothing in the current tree points to it.
+  mk c77
+  log() { for i in $(seq "$1" "$2"); do printf -- '- 0.%s: maintenance\n' "$i" >> "$R/CHANGES.md"; commit c77 "Release 0.$i"; done; }
+  log 1 30
+  mkdir -p "$R/deploy"
+  # Split so that push protection does not flag the runner itself.
+  printf '#!/bin/sh\n# Smoke test after deploy\nSTRIPE_KEY=%s\ncurl -fsS -u "$STRIPE_KEY:" https://api.stripe.com/v1/balance\n' "sk_""live_Rk82mWq5Tz9LbN4vXc7Hd1Ps" > "$R/deploy/smoke.sh"
+  commit c77 "Add deploy smoke check"
+  printf -- '- 0.31: smoke check after deploy\n' >> "$R/CHANGES.md"; commit c77 "Release 0.31"
+  (cd "$R" && git rm -rq deploy && git commit -qm "Tidy deploy folder")
+  log 32 130
+  cx c77 run ""
   ;;
 nodegoat)
   pub nodegoat OWASP/NodeGoat c5cb68a7084e4ae7dcc60e6a98768720a81841e8; rm -rf "$R/app/views/tutorial"; pinit

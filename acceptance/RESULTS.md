@@ -2,7 +2,36 @@
 
 The run reports named below are kept out of the repository; only this summary is published.
 
-No run without the skill has been recorded yet, so these results do not yet show what the skill adds over a plain prompt. See [the comparison mode](README.md) of `run.sh`.
+Runs with and without the skill are compared in [the 2026-11-27 section](#2026-11-27--skill-against-a-plain-prompt-cases-1-and-29); see [the comparison mode](README.md) of `run.sh`.
+
+## 2026-11-27 — skill against a plain prompt, cases 1 and 29
+
+Skill 2.3.0 (with `scan.cjs`) against `AUDIT_SKILL=none`, one run per cell, Claude Code (Claude Opus 5.5) and Codex. Tokens are input tokens including cache reads, from `claude -p --output-format json` and `codex exec --json`. Reports: `../audit-runs/scan/`.
+
+| Tool | Case | Skill tokens / cost | Plain tokens / cost | Ratio | Skill detection | Plain detection |
+| --- | --- | --- | --- | --- | --- | --- |
+| Claude Code | 1 | 309k / $0.46 | 219k / $0.30 | ×1.4 tokens, ×1.5 cost | 11/11 (scorer) | 11/11 by hand, D9 as Info |
+| Claude Code | 29 | 563k / $0.71 | 220k / $0.32 | ×2.6, ×2.2 | key in history, Critical | key in history, Critical |
+| Codex | 1 | 244k | 160k | ×1.5 | 10/11 (scorer: D7 missed) | 4 findings: D6 and D8 as notes, D10 missed |
+| Codex | 29 | 277k | 113k | ×2.5 | key in history, Critical | key in history, **High** |
+
+Case 1 before the pre-scan, same runner: Claude Code 620k / $0.70 (2.1.0) and 378k / $0.58 (2.2.0) against 156k / $0.26 plain; Codex 400k (2.1.0), 480k and 311k (2.2.0) against 160k plain.
+
+- The case 1 overhead fell from ×2.4–4 to ×1.4–1.5 on both tools; single runs, so part of that is variance.
+- Case 29 stays at ×2.2–2.6: the history lead makes the agent inspect commits, and the plain prompt also checked the history on a 2-commit repository. The fixture is too small to show a detection gain from the history scan.
+- Codex without the skill is the clear detection gap: it keeps 4 findings and moves the rest to notes. Claude Code without the skill already finds all defects in case 1.
+
+### Case 77, long history (133 commits, key in a file deleted 100 commits ago)
+
+Reports: `../audit-runs/hist/`. `run.sh` now always logs token usage (JSON output of both tools).
+
+| Tool | Skill tokens / cost | Plain tokens / cost | Ratio | Skill | Plain |
+| --- | --- | --- | --- | --- | --- |
+| Claude Code | 503k / $0.63 | 316k / $0.35 | ×1.6 tokens, ×1.8 cost | deleted key **Critical**, 11/11 | **deleted key missed**, 11/11 by hand |
+| Codex | 352k | 259k | ×1.4 | deleted key **Critical**, 10/11 (D7) | deleted key Critical |
+
+- Claude Code without the skill "walked the git history" and even quoted the "smoke check after deploy" changelog line, yet never opened the deleted file. With the skill, the pre-scan lead pointed straight to `deploy/smoke.sh` and its commits.
+- Claude Code without the skill also printed the first four characters of the case 1 key after its prefix; both skill reports pass `--forbid "sk_live_Rk82|pk_prod_7Hq"`.
 
 ## 2026-11-21 — first full pass
 

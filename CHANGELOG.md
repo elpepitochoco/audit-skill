@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.3.0
+
+- Pre-scan: `scripts/scan.cjs` lists leads before the examination — secrets in the tree and in the Git history (masked), documented commands and Markdown links with no target, unpinned dependencies and missing lockfiles, vendored or minified files, source files no test names — and the file count for Coverage. Read-only, no dependency; the agent confirms each lead in the source.
+
 ## Unreleased
 
 - Benchmark: eleven public cases with published answers (OWASP NodeGoat, Juice Shop and Benchmark, leaky-repo, GitHub Actions Goat, nodejs-goof, TerraGoat, QuixBugs, the Raha hospital dataset, the W3C Before and After Demonstration, n-plus) cover every audit axis except Operability logging and recovery. `run.sh` fetches each at a pinned commit and removes its answer key; `score-public.js` scores the report. Results in `acceptance/RESULTS.md`.

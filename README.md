@@ -47,7 +47,7 @@ For Claude Code, replace `.agents` with `.claude` in the destination. The skill 
 
 In Gemini CLI, project skills load only in a [trusted folder](https://geminicli.com/docs/cli/trusted-folders/).
 
-The scripts check the report format and publish it without overwriting an earlier one. They need Node.js 18.14 or later; without Node.js the agent writes the report directly.
+The scripts pre-scan the target for mechanical leads (secrets in the Git history, documented commands that do not exist, broken links, unpinned dependencies), check the report format and publish it without overwriting an earlier one. They need Node.js 18.14 or later; without Node.js the agent writes the report directly.
 
 Official documentation: [Codex](https://learn.chatgpt.com/docs/build-skills) · [Claude Code](https://code.claude.com/docs/en/skills) · [Claude web](https://support.claude.com/en/articles/12512198-how-to-create-custom-skills) · [Gemini CLI](https://geminicli.com/docs/cli/skills/) · [Gemini web](https://support.google.com/gemini/answer/17094296)
 

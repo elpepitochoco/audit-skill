@@ -57,7 +57,7 @@ sh acceptance/run.sh codex 1     # or: cc 1, codex 22, cc readme
 
 The script builds a fresh repository per case in `../audit-runs/<tool>/` (or `$AUDIT_RUNS`), installs the skill, applies the case steps and sends each prompt. Case 3 reuses case 1, and case 6 is case 1 with each tool. Replay the whole suite after a batch of skill changes: a rule that fixes one case can break another.
 
-To measure what the skill adds, run the same case without it: `AUDIT_SKILL=none sh acceptance/run.sh <codex|cc> <case>`. The repository gets no skill, the prompt drops the `$audit` or `/audit` invocation and asks for one Markdown report in `audits/`, and runs go to `../audit-runs/<tool>-noskill/`. Score both reports the same way, for example with `score-case1.js` for case 1.
+To measure what the skill adds, run the same case without it: `AUDIT_SKILL=none sh acceptance/run.sh <codex|cc> <case>`. The repository gets no skill, the prompt drops the `$audit` or `/audit` invocation and asks for one Markdown report in `audits/`, and runs go to `../audit-runs/<tool>-noskill/`. Score both reports the same way, for example with `score-case1.js` for case 1. Token usage is in `logs/<repo>-<step>.last.txt` (Claude Code, JSON) and in the `turn.completed` lines of `logs/<repo>-<step>.log` (Codex).
 
 Check the format mechanically, then judge the content by hand:
 
@@ -683,3 +683,9 @@ Cases 42 to 76 come from the `codex` branch, where they were numbered 22 to 56. 
 1. In a standalone folder, add `README.md` containing `Run npm run preview.`, a `package.json` with only a `test` script, and `ROADMAP.md` saying “Proposal: add the preview script by the next release. Approval is pending.”
 2. Send “Audit the README command against the manifest and consult ROADMAP.md for decisions on this gap. The release lead is authorized to defer it. Inspect the files without running npm.” Expect one active confirmed finding. The proposal leaves it open.
 3. Replace the roadmap line with “Release lead decision: defer the missing preview script until release v1.2. Release v1.2 is pending.” Repeat. Expect the prior report as baseline, the same finding ID under **Planned later**, zero active findings and a citation to the new decision.
+
+### 77. A live key deleted long ago, deep in a long history
+
+1. In a fresh billing fixture, make 30 release commits that only append to `CHANGES.md`. Add `deploy/smoke.sh` holding `STRIPE_KEY=sk_live_…` (32 characters) and commit "Add deploy smoke check". Make one more release commit, then delete `deploy/` with the message "Tidy deploy folder". Add 99 more release commits.
+2. Run `audit` with no parameters.
+3. Expect, besides D1 to D11, a **Critical** Security / Secrets and sensitive data finding for the key in `deploy/smoke.sh`, citing the commit that added it, with rotation as the correction and the key masked. Nothing in the current tree mentions the file. Check with `--forbid "sk_live_Rk82|pk_prod_7Hq|[a-z]+@example.test"`.
