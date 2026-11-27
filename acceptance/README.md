@@ -1,6 +1,6 @@
 # Audit skill acceptance
 
-This folder checks that the skill meets the [specification's acceptance criteria](../SPEC.md#acceptance-criteria). It holds a fake project, [`fixture/`](fixture/), with known defects, and what each audit must find.
+This folder checks the skill against known cases. It holds a fake project, [`fixture/`](fixture/), with known defects, and what each audit must find.
 
 `fixture/` is a dependency-free Node.js billing module. `npm test` runs Node's built-in test runner. The e-mails are fictitious and the API key is fake.
 
@@ -57,7 +57,7 @@ sh acceptance/run.sh codex 1     # or: cc 1, codex 22, cc readme
 
 The script builds a fresh repository per case in `../audit-runs/<tool>/` (or `$AUDIT_RUNS`), installs the skill, applies the case steps and sends each prompt. Case 3 reuses case 1, and case 6 is case 1 with each tool. Replay the whole suite after a batch of skill changes: a rule that fixes one case can break another.
 
-To measure what the skill adds, run the same case without it: `AUDIT_SKILL=none sh acceptance/run.sh <codex|cc> <case>`. The repository gets no skill, the prompt drops the `$audit` or `/audit` invocation and asks for one Markdown report in `audits/`, and runs go to `../audit-runs/<tool>-noskill/`. Score both reports the same way, for example with `score-case1.js` for case 1. Token usage is in `logs/<repo>-<step>.last.txt` (Claude Code, JSON) and in the `turn.completed` lines of `logs/<repo>-<step>.log` (Codex).
+To measure what the skill adds, run the same case without it: `AUDIT_SKILL=none sh acceptance/run.sh <codex|cc> <case>`. The repository gets no skill, the prompt drops the `$audit` or `/audit` invocation and asks for one Markdown report in `audits/`, and runs go to `../audit-runs/<tool>-noskill/`. Score both reports the same way, for example with `score-case1.js` for case 1. Sum token usage with `node acceptance/usage.js <runs-dir>/<tool>/logs`.
 
 Check the format mechanically, then judge the content by hand:
 

@@ -46,6 +46,7 @@ cx() { # cx <repo> <label> <prompt>
   if [ "$TOOL" = codex ]; then
     codex exec --json --skip-git-repo-check -s workspace-write -C "$B/$1" -o "$B/logs/$1-$2.last.txt" "$p" > "$B/logs/$1-$2.log" 2>&1 < /dev/null || st=$?
   else
+    # JSON output records token usage and cost for the comparison between skill versions.
     (cd "$B/$1" && claude -p "$p" --output-format json --setting-sources project,local --no-session-persistence \
       --permission-mode acceptEdits \
       --allowedTools Read Grep Glob Write Edit "Bash(git:*)" "Bash(node:*)" "Bash(npm:*)" "Bash(ls:*)" \
