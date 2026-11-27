@@ -4,14 +4,16 @@
 // (secrets in the tree and the Git history, documented commands and links, pinned
 // dependencies, vendored code, tested files) and the file count for Coverage.
 // Usage: node scan.cjs <target-root> [<path-prefix>...]
+// Exits 1 only when the target itself cannot be scanned; per-file problems go under Not scanned.
 
 const { spawn, spawnSync } = require('node:child_process');
-const { existsSync, readFileSync, readdirSync, statSync } = require('node:fs');
+const { existsSync, lstatSync, readFileSync, readdirSync, statSync } = require('node:fs');
 const { dirname, join, posix, relative, resolve, sep } = require('node:path');
 const readline = require('node:readline');
 
 const MAX_LINES = 40; // per section, to keep the output cheap to read
 const MAX_TEXT_BYTES = 1024 * 1024;
+const MAX_HISTORY_COMMITS = 5000; // newest commits whose patches are read for secrets
 const SKIP_DIRS = new Set(['.git', 'node_modules', 'audits', '.venv', 'venv', '__pycache__', 'dist', 'build']);
 const SKILL_DIRS = ['.agents/skills/audit/', '.claude/skills/audit/'];
 
@@ -46,12 +48,27 @@ function listFiles(root, inGit) {
   return [...new Set(files)].filter((f) => !f.startsWith('audits/') && !SKILL_DIRS.some((d) => f.startsWith(d)) && existsSync(join(root, f)));
 }
 
+// Returns the text, or why the file was not read. lstat, so a symbolic link never leads outside the target.
 function readText(root, file) {
   const path = join(root, file);
-  if (statSync(path).size > MAX_TEXT_BYTES) return null;
+  const info = lstatSync(path);
+  if (info.isSymbolicLink()) return { skip: 'symbolic link' };
+  if (!info.isFile()) return { skip: 'not a regular file' };
+  if (info.size > MAX_TEXT_BYTES) return { skip: 'over 1 MB' };
   const buf = readFileSync(path);
-  if (buf.subarray(0, 8000).includes(0)) return null;
-  return buf.toString('utf8');
+  if (buf.subarray(0, 8000).includes(0)) return { skip: 'binary' };
+  return { text: buf.toString('utf8') };
+}
+
+function regularFile(path) {
+  return lstatSync(path, { throwIfNoEntry: false })?.isFile() ?? false;
+}
+
+// Replaces any secret value in a printed line by its mask, whatever section the line comes from.
+function sanitize(line) {
+  let out = line;
+  for (const hit of findSecrets(line)) out = out.split(hit.value).join(`[${hit.type}: ${hit.masked}]`);
+  return out;
 }
 
 function findSecrets(line) {
@@ -66,11 +83,14 @@ function findSecrets(line) {
   return hits;
 }
 
-// shortcut: reads the full patch history, slow on very large repositories; add a commit limit if that becomes a problem.
+// Reads the patches of the newest MAX_HISTORY_COMMITS commits on all refs; the caller reports the limit.
 async function historySecrets(root, prefixes, current) {
-  const args = ['--no-optional-locks', '-C', root, '-c', 'core.quotepath=off', 'log', '--all', '-p', '-U0', '--relative', '--no-color',
-    '--no-ext-diff', '--no-textconv', '--format=commit %h %as', '--', ...prefixes];
-  const child = spawn('git', args, { stdio: ['ignore', 'pipe', 'ignore'] });
+  const args = ['--no-optional-locks', '-C', root, '-c', 'core.quotepath=off', 'log', '--all', `--max-count=${MAX_HISTORY_COMMITS}`,
+    '-p', '-U0', '--relative', '--no-color', '--no-ext-diff', '--no-textconv', '--date=short', '--format=commit %h %ad', '--', ...prefixes];
+  const child = spawn('git', args, { stdio: ['ignore', 'pipe', 'pipe'] });
+  let stderr = '';
+  child.stderr.on('data', (d) => { stderr += d; });
+  const exit = new Promise((done) => child.on('close', done));
   const seen = new Map();
   let commit = '';
   let file = '';
@@ -85,13 +105,14 @@ async function historySecrets(root, prefixes, current) {
       }
     }
   }
-  return [...seen.values()];
+  const code = await exit;
+  return { hits: [...seen.values()], error: code === 0 ? null : stderr.trim().split(/\r?\n/)[0] || `git log exited with ${code}` };
 }
 
 function nearestManifest(root, file, name) {
   for (let dir = posix.dirname(file); ; dir = posix.dirname(dir)) {
     const path = join(root, dir === '.' ? '' : dir, name);
-    if (existsSync(path)) return path;
+    if (regularFile(path)) return path;
     if (dir === '.' || dir === '') return null;
   }
 }
@@ -126,7 +147,8 @@ function checkDocs(root, file, text, out) {
       if (!existsSync(join(root, m[1])) && !existsSync(join(root, base, m[1]))) out.commands.push(`${at} \`${m[0]}\`: ${m[1]} not found`);
     }
     for (const m of line.matchAll(/\]\(([^)\s]+)\)/g)) {
-      const target = decodeURI(m[1]).replace(/[#?].*$/, '');
+      let target;
+      try { target = decodeURI(m[1]).replace(/[#?].*$/, ''); } catch { out.links.push(`${at} → ${m[1]}: malformed URL encoding`); continue; }
       if (!target || /^[a-z][a-z0-9+.-]*:/i.test(target) || target.includes('{')) continue;
       const path = target.startsWith('/') ? join(root, target) : join(root, posix.dirname(file), target);
       if (!existsSync(path)) out.links.push(`${at} → ${m[1]}`);
@@ -165,23 +187,31 @@ async function scan(root, prefixes) {
   const current = new Set();
   const texts = new Map();
   for (const file of files) {
-    const text = readText(root, file);
-    if (text === null) { out.unread.push(`${file} (binary or over 1 MB)`); continue; }
-    texts.set(file, text);
-    text.split(/\r?\n/).forEach((line, i) => {
-      for (const hit of findSecrets(line)) {
-        current.add(hit.value);
-        out.secrets.push(`${file}:${i + 1} ${hit.type} (${hit.masked})`);
-      }
-    });
-    if (/\.(?:md|markdown)$/i.test(file)) checkDocs(root, file, text, out);
-    checkDependencies(root, file, text, fileSet, out);
-    if (VENDOR.test(file) || (/\.(?:c?js|css)$/.test(file) && text.split('\n', 20).some((l) => l.length > 1000))) out.vendored.push(file);
-  }
-  if (inGit) {
-    for (const h of await historySecrets(root, prefixes, current)) {
-      out.history.push(`${h.file} ${h.type} (${h.masked}), added in ${h.commit}, absent from the current tree`);
+    // One unreadable file must not cost the agent every other lead.
+    try {
+      const { text, skip } = readText(root, file);
+      if (skip) { out.unread.push(`${file} (${skip})`); continue; }
+      texts.set(file, text);
+      text.split(/\r?\n/).forEach((line, i) => {
+        for (const hit of findSecrets(line)) {
+          current.add(hit.value);
+          out.secrets.push(`${file}:${i + 1} ${hit.type} (${hit.masked})`);
+        }
+      });
+      if (/\.(?:md|markdown)$/i.test(file)) checkDocs(root, file, text, out);
+      checkDependencies(root, file, text, fileSet, out);
+      if (VENDOR.test(file) || (/\.(?:c?js|css)$/.test(file) && text.split('\n', 20).some((l) => l.length > 1000))) out.vendored.push(file);
+    } catch (error) {
+      out.unread.push(`${file} (${error.code || error.message})`);
     }
+  }
+  let historyNote = null;
+  if (inGit) {
+    const { hits, error } = await historySecrets(root, prefixes, current);
+    for (const h of hits) out.history.push(`${h.file} ${h.type} (${h.masked}), added in ${h.commit}, absent from the current tree`);
+    const total = Number(git(root, ['rev-list', '--all', '--count']));
+    if (error) historyNote = `incomplete: git log failed (${error}); check the history by hand`;
+    else if (total > MAX_HISTORY_COMMITS) historyNote = `newest ${MAX_HISTORY_COMMITS} of ${total} commits checked; older history not checked`;
   }
   const tests = files.filter((f) => TEST.test(f) && texts.has(f));
   const testText = tests.map((f) => texts.get(f)).join('\n');
@@ -192,16 +222,16 @@ async function scan(root, prefixes) {
       if (!new RegExp(`\\b${stem.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`).test(testText)) out.untested.push(f);
     }
   }
-  return { inGit, files, tests, sources, out };
+  return { inGit, files, tests, sources, out, historyNote };
 }
 
 function section(title, lines, empty = 'none') {
-  const shown = lines.slice(0, MAX_LINES).map((l) => `- ${l}`);
-  if (lines.length > MAX_LINES) shown.push(`- … ${lines.length - MAX_LINES} more`);
+  const shown = lines.slice(0, MAX_LINES).map((l) => `- ${sanitize(l)}`);
+  if (lines.length > MAX_LINES) shown.push(`- … ${lines.length - MAX_LINES} more: rerun with narrower path prefixes to list them`);
   return `## ${title}\n${shown.length ? shown.join('\n') : empty}\n`;
 }
 
-function format(root, prefixes, { inGit, files, tests, sources, out }) {
+function format(root, prefixes, { inGit, files, tests, sources, out, historyNote }) {
   const byExt = {};
   for (const f of files) {
     const ext = posix.extname(f) || posix.basename(f);
@@ -213,7 +243,7 @@ function format(root, prefixes, { inGit, files, tests, sources, out }) {
     'Leads only: confirm each one in the source before reporting it.\n',
     `## Files\n- ${files.length} in scope${inGit ? ' (Git: tracked and untracked, ignored files excluded)' : ' (outside Git: directory walk)'}: ${exts || 'none'}\n- ${sources.length} source files, ${tests.length} test files\n`,
     section('Secrets in the current tree', out.secrets),
-    inGit ? section('Secrets only in the Git history', out.history) : '## Secrets only in the Git history\nnot checked: outside Git\n',
+    inGit ? section('Secrets only in the Git history', out.history) + (historyNote ? `Note: ${historyNote}\n` : '') : '## Secrets only in the Git history\nnot checked: outside Git\n',
     section('Documented commands with no target', out.commands),
     section('Broken relative links in Markdown', out.links),
     section('Dependencies', out.deps),

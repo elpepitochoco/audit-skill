@@ -20,5 +20,6 @@ test('sums Claude Code and Codex token usage per step', (t) => {
   assert.deepEqual(usage(logs), [
     { step: 'c1-run', input: 111, output: 5, seconds: 2 },
     { step: 'c2-run', input: 100, output: 10, seconds: 0 },
+    { step: 'c3-run', missing: true },
   ]);
 });

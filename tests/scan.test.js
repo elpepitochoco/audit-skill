@@ -2,7 +2,7 @@
 
 const assert = require('node:assert/strict');
 const { spawnSync } = require('node:child_process');
-const { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } = require('node:fs');
+const { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } = require('node:fs');
 const { tmpdir } = require('node:os');
 const { join } = require('node:path');
 const test = require('node:test');
@@ -96,4 +96,32 @@ test('does not touch the Git index', (t) => {
   writeFileSync(join(root, 'src', 'billing.js'), 'changed\n');
   assert.equal(run(root, '.').status, 0);
   assert.deepEqual(readFileSync(join(root, '.git', 'index')), index);
+});
+
+test('survives symbolic links, malformed links and a failing git log, and masks every section', (t) => {
+  const root = project(t);
+  const outside = mkdtempSync(join(tmpdir(), 'audit-scan-outside-'));
+  t.after(() => rmSync(outside, { recursive: true }));
+  writeFileSync(join(outside, 'keys.txt'), `${treeKey}\n`);
+  writeFileSync(join(root, 'docs', 'bad.md'), 'See [x](a%zz.md).\n');
+  writeFileSync(join(root, 'package.json'), JSON.stringify({ dependencies: { x: 'https://user:tok3nvalue@registry.example.test/x.tgz' } }));
+  git(root, 'init', '-q');
+  git(root, 'add', '.');
+  git(root, 'commit', '-qm', 'Initial');
+  // A tracked symbolic link to a directory outside the target ('junction' needs no privilege on Windows).
+  symlinkSync(outside, join(root, 'link'), 'junction');
+  const blob = spawnSync('git', ['hash-object', '-w', '--stdin'], { cwd: root, input: outside, encoding: 'utf8' }).stdout.trim();
+  git(root, 'update-index', '--add', '--cacheinfo', `120000,${blob},link`);
+
+  const result = run(root, '.');
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, /- link \(symbolic link\)/);
+  assert.ok(!result.stdout.includes(treeKey.slice(4, 12)), 'nothing is read through the link');
+  assert.match(result.stdout, /docs\/bad\.md:1 → a%zz\.md: malformed URL encoding/);
+  assert.match(result.stdout, /\[credentials in URL: user:password@\]/);
+  assert.doesNotMatch(result.stdout, /tok3nvalue/);
+
+  const failing = run(root, '.', ':(bad)x');
+  assert.equal(failing.status, 0, failing.stderr);
+  assert.match(failing.stdout, /Note: incomplete: git log failed/);
 });

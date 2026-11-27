@@ -633,3 +633,7 @@ Lessons for the next skill changes:
 - **Dependencies**: Codex matched 77 Snyk rules against the lockfile but reported only the packages it judged reachable, leaving four documented exploitable packages out.
 - **Benchmark false alarms** are close calls: Claude Code flagged the small range of `BenchmarkTest00010`'s remember-me token, and Codex flagged the unsalted SHA-384 of `BenchmarkTest00009`. The Benchmark counts both servlets as safe for their category.
 - Keyword scoring under-counts Codex, whose titles describe effects ("Allocation reads lack a record ownership check") rather than vulnerability classes. Several patterns were widened after reading its reports.
+
+## 2026-11-27 — Juice Shop with Codex after the deliberate-flaw rule (2.3.1)
+
+Reports: `../audit-runs/nc24/`. One blind run of `juiceshop` with Codex after 2.3.1 stated that a flaw the target calls deliberate is still a gap. Score: **14/14** (3/14 with 2.2.0), 69 findings, every planted flaw rated High or Critical except the open redirect and the prompt injection (Medium). The report notes the training intent in its corrections ("keep the training behavior in an isolated fixture") instead of dropping the findings. 3.0 M input tokens for 63 route files. One run: the change from 3/14 is far beyond run-to-run noise, but the rate of refusals is not measured.

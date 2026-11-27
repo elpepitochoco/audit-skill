@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.3.1
+
+- Pre-scan: never reads through a symbolic link, lists a file it cannot read under Not scanned instead of stopping, reports a malformed Markdown link instead of crashing, masks secrets in every section, says when `git log` failed, reads the patches of the newest 5,000 commits only and says so, and uses Git options available since 2.15.
+- If the pre-scan fails, the agent makes its checks by reading and records the failure. A flaw the target calls deliberate is still reported.
+- Benchmark: `usage.js` lists steps without usage data and marks the total incomplete.
+
 ## 2.3.0
 
 - Pre-scan: `scripts/scan.cjs` lists leads before the examination — secrets in the tree and in the Git history (masked), documented commands and Markdown links with no target, unpinned dependencies and missing lockfiles, vendored or minified files, source files no test names — and the file count for Coverage. Read-only, no dependency; the agent confirms each lead in the source.

@@ -30,25 +30,34 @@ function codexStep(text) {
 }
 
 function usage(logs) {
-  const steps = [];
+  // Every step with a .last.txt or .log file is listed; one without readable usage is marked missing, not dropped.
+  const found = new Map();
   for (const name of fs.readdirSync(logs).sort()) {
-    const file = path.join(logs, name);
-    const text = fs.readFileSync(file, 'utf8');
-    if (name.endsWith('.last.txt') && text.trimStart().startsWith('{')) {
-      try { steps.push({ step: name.slice(0, -'.last.txt'.length), ...claudeStep(text) }); } catch {}
-    } else if (name.endsWith('.log') && text.includes('"turn.completed"')) {
-      steps.push({ step: name.slice(0, -'.log'.length), ...codexStep(text) });
+    const ext = name.endsWith('.last.txt') ? '.last.txt' : name.endsWith('.log') ? '.log' : null;
+    if (!ext) continue;
+    const step = name.slice(0, -ext.length);
+    if (!found.has(step)) found.set(step, null);
+    const text = fs.readFileSync(path.join(logs, name), 'utf8');
+    if (ext === '.last.txt' && text.trimStart().startsWith('{')) {
+      try { found.set(step, claudeStep(text)); } catch {}
+    } else if (ext === '.log' && text.includes('"turn.completed"')) {
+      found.set(step, codexStep(text));
     }
   }
-  return steps;
+  return [...found].map(([step, u]) => (u ? { step, ...u } : { step, missing: true }));
 }
 
 if (require.main === module) {
   for (const logs of process.argv.slice(2)) {
     const steps = usage(logs);
-    const total = steps.reduce((t, s) => ({ input: t.input + s.input, output: t.output + s.output }), { input: 0, output: 0 });
-    for (const s of steps) console.log(`${logs}\t${s.step}\tin=${s.input}\tout=${s.output}${s.seconds ? `\ts=${s.seconds}` : ''}`);
-    console.log(`${logs}\tTOTAL\tin=${total.input}\tout=${total.output}`);
+    const counted = steps.filter((s) => !s.missing);
+    const total = counted.reduce((t, s) => ({ input: t.input + s.input, output: t.output + s.output }), { input: 0, output: 0 });
+    for (const s of steps) {
+      console.log(s.missing ? `${logs}\t${s.step}\tmissing: no usage in its logs`
+        : `${logs}\t${s.step}\tin=${s.input}\tout=${s.output}${s.seconds ? `\ts=${s.seconds}` : ''}`);
+    }
+    const gap = steps.length - counted.length;
+    console.log(`${logs}\tTOTAL\tin=${total.input}\tout=${total.output}${gap ? `\tINCOMPLETE: ${gap} step(s) missing` : ''}`);
   }
 }
 
