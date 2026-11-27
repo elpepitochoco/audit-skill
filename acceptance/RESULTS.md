@@ -688,3 +688,4 @@ Reports: `../audit-runs/<tool>/c79/`; the 2.5.0 step 2 is kept in `../audit-runs
 - Both tools read the files the script listed and named them in a **Rotation** bullet (11 and 15); both reports pass the checker, every earlier ID is kept, and 8 and 14 findings are carried.
 - The rotation finds real gaps: `res.render` does not confine view names (Claude Code, in `lib/view.js`), a rejected setting leaves configuration out of sync and null options throw in `app.render` (Codex, in `lib/application.js`). Codex's High finding, an affected `proxy-addr` range, comes from running the dependency check on the whole scope.
 - The cost is the trade-off: with Claude Code the re-audit stays about half the cost of a full audit; with Codex it costs about as much in fresh tokens, because it read 37 files in full, more than the 15 listed.
+- After this run the rotation went from 15 to 8 files, and the rule now forbids reading other unchanged files in full. Not measured yet.

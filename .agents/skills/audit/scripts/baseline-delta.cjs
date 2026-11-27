@@ -72,7 +72,7 @@ function findings(lines = []) {
 
 // Advisories and leaked credentials change without any file changing.
 const EXTERNAL = /\/ (?:Dependencies|Secrets)\b/;
-const ROTATION_SIZE = 15;
+const ROTATION_SIZE = 8; // measured on case 79b: 15 made a Codex re-audit cost as much as a full audit
 const SKIP = /^(?:audits|\.agents\/skills\/audit|\.claude\/skills\/audit)\//;
 const TEXT = /\.(?:c?js|mjs|jsx|tsx?|py|go|rb|java|cs|php|rs|kt|swift|sh|ps1|ya?ml|json|toml|ini|cfg|conf|tf|sql|html?|md|txt)$|(?:^|\/)(?:Dockerfile|Makefile|\.env[^/]*)$/i;
 
