@@ -215,6 +215,7 @@ test('a Still present finding with unchanged evidence can be a carried entry lin
   assert.deepEqual(checkText(t, carried('Still present', link)), []);
   assert.ok(checkText(t, carried('New', link)).some((e) => e.includes('only a Still present finding can be a **Carried** entry')));
   assert.ok(checkText(t, carried('Still present', '- **Carried** Unchanged since the baseline.')).some((e) => e.includes('must link the report')));
+  assert.ok(checkText(t, carried('Still present', link.replace('`abc1234`', 'the baseline'))).some((e) => e.includes('must name the commit')));
   const wrongCount = carried('Still present', link).replace('| 0 | 0 | 0 | 1 | 0 |', '| 0 | 0 | 0 | 0 | 0 |');
   assert.ok(checkText(t, wrongCount).some((e) => e.includes('differ from active findings')), 'carried entries stay counted');
 });

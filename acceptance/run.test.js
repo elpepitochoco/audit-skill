@@ -8,7 +8,8 @@ const { tmpdir } = require('node:os');
 const { delimiter, join } = require('node:path');
 const test = require('node:test');
 
-const hasSh = spawnSync('sh', ['-c', 'exit 0']).status === 0;
+const gitIdentity = { GIT_AUTHOR_NAME: 't', GIT_AUTHOR_EMAIL: 't@example.test', GIT_COMMITTER_NAME: 't', GIT_COMMITTER_EMAIL: 't@example.test' };
+const hasSh =spawnSync('sh', ['-c', 'exit 0']).status === 0;
 
 function replay(t, stubBody, kase = 'readme') {
   const dir = mkdtempSync(join(tmpdir(), 'audit-run-'));
@@ -70,7 +71,8 @@ test('a case with no parameters asks both modes for a whole-repository audit', {
   for (const [mode, expected] of [['', /^\/audit Audit this repository\.$/], ['none', /^Audit this repository\. Write the report/]]) {
     const result = spawnSync('sh', [join(__dirname, 'run.sh'), 'cc', '1'], {
       encoding: 'utf8',
-      env: { ...process.env, AUDIT_SKILL: mode, AUDIT_RUNS: join(dir, 'runs'), PATH: `${dir}${delimiter}${process.env.PATH}` },
+      // CI runners have no Git identity, and case 1 commits its fixture.
+      env: { ...process.env, ...gitIdentity, AUDIT_SKILL: mode, AUDIT_RUNS: join(dir, 'runs'), PATH: `${dir}${delimiter}${process.env.PATH}` },
     });
     assert.equal(result.status, 0, result.stderr);
     assert.match(readFileSync(join(dir, 'runs', mode ? 'cc-noskill' : 'cc', 'prompt.txt'), 'utf8'), expected);

@@ -70,8 +70,19 @@ test('converts active and planned findings to SARIF results with locations', () 
 
 test('converts the published example report', () => {
   const text = readFileSync(join(__dirname, '..', 'examples', '2026-11-26_10-00-00-publications.md'), 'utf8');
-  const [run] = toSarif(text).runs;
+  const [run] = toSarif(text, 'audits/2026-11-26_10-00-00-publications.md').runs;
   assert.equal(run.results.length, 1);
   assert.equal(run.results[0].level, 'warning');
-  assert.deepEqual(run.results[0].locations, []);
+  const { artifactLocation, region } = run.results[0].locations[0].physicalLocation;
+  assert.equal(artifactLocation.uri, 'audits/2026-11-26_10-00-00-publications.md', 'a finding with no cited file points to the report');
+  assert.ok(text.split('\n')[region.startLine - 1].startsWith('### '));
+});
+
+test('the location comes from Observed and keeps the link encoding', () => {
+  const text = report.replace(
+    '- **Observed** [src/config.js:2](../src/config.js#L2) holds `pk_prod_…`.',
+    '- **Expected** As in [the guide](../docs/guide.md#L1).\n- **Observed** [my file.js:2](../src/my%20file.js#L2) and [bad](../src/%E0%A4%A.js) hold `pk_prod_…`.',
+  );
+  const [key] = toSarif(text).runs[0].results;
+  assert.deepEqual(key.locations[0].physicalLocation.artifactLocation.uri, 'src/my%20file.js');
 });

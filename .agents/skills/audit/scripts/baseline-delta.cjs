@@ -6,8 +6,8 @@
 // Prints "Mode: incremental" or "Mode: full audit required: <reason>".
 
 const { spawnSync } = require('node:child_process');
-const { readFileSync } = require('node:fs');
-const { basename, resolve } = require('node:path');
+const { existsSync, readFileSync } = require('node:fs');
+const { basename, dirname, join, resolve } = require('node:path');
 const { reportLines } = require('./report-markdown.cjs');
 
 function git(root, args) {
@@ -34,10 +34,19 @@ function sections(text) {
   return out;
 }
 
+// A malformed percent-encoding is kept as written instead of stopping the script.
+function decodePath(path) {
+  try {
+    return decodeURIComponent(path);
+  } catch {
+    return path;
+  }
+}
+
 // Paths a finding cites: relative links from audits/ (../path) and backticked path:line locators.
 function citedPaths(block) {
   const paths = new Set();
-  for (const m of block.matchAll(/\]\(\.\.\/([^)#\s]+)/g)) paths.add(decodeURIComponent(m[1]));
+  for (const m of block.matchAll(/\]\(\.\.\/([^)#\s]+)/g)) paths.add(decodePath(m[1]));
   for (const m of block.matchAll(/`([\w.-]+(?:\/[\w.-]+)*\.\w+)(?::\d+(?:-\d+)?)?`/g)) paths.add(m[1]);
   return [...paths];
 }
@@ -60,10 +69,14 @@ function findings(lines = []) {
   });
 }
 
+// Advisories and leaked credentials change without any file changing.
+const EXTERNAL = /\/ (?:Dependencies|Secrets)\b/;
+
 function delta(root, reportPath) {
   const text = readFileSync(reportPath, 'utf8');
   const branchCommit = headerValue(text, 'Branch / commit') ?? '';
-  const commit = /`([0-9a-f]{7,64})`/.exec(branchCommit)?.[1] ?? /\b([0-9a-f]{7,64})\b/.exec(branchCommit)?.[1];
+  // Only a backticked hash or one written after "commit": a branch such as fix/deadbeef1 is not a commit.
+  const commit = /`([0-9a-f]{7,64})`/.exec(branchCommit)?.[1] ?? /\bcommit ([0-9a-f]{7,64})\b/.exec(branchCommit)?.[1];
   const localChanges = headerValue(text, 'Local changes') ?? '';
   const parts = sections(text);
   const open = findings(parts.Findings).filter((f) => f.status && f.status !== 'Fixed');
@@ -76,12 +89,16 @@ function delta(root, reportPath) {
 
   const changed = [];
   if (!reason) {
-    for (const line of (git(root, ['diff', '--name-status', '-M', '--no-ext-diff', '--no-textconv', commit, '--', '.']) ?? '').split('\n')) {
-      const [status, ...files] = line.split('\t');
-      if (status) changed.push({ status: status[0], files });
-    }
-    for (const file of (git(root, ['ls-files', '--others', '--exclude-standard', '--', '.']) ?? '').split('\n')) {
-      if (file) changed.push({ status: '?', files: [file] });
+    const diff = git(root, ['diff', '--name-status', '-M', '--no-ext-diff', '--no-textconv', commit, '--', '.']);
+    const others = git(root, ['ls-files', '--others', '--exclude-standard', '--', '.']);
+    // A failed command must not read as "nothing changed".
+    if (diff === null || others === null) reason = 'git could not list the changes since the baseline commit';
+    else {
+      for (const line of diff.split('\n')) {
+        const [status, ...files] = line.split('\t');
+        if (status) changed.push({ status: status[0], files });
+      }
+      for (const file of others.split('\n')) if (file) changed.push({ status: '?', files: [file] });
     }
   }
   const relevant = changed.filter((c) => !c.files.every((f) => f.startsWith('audits/')));
@@ -89,6 +106,8 @@ function delta(root, reportPath) {
   const mark = (f) => {
     if (reason) return 're-check';
     if (!f.paths.length) return 're-check: cites no file';
+    if (EXTERNAL.test(f.pair ?? '')) return 're-check: depends on facts outside the repository';
+    if (f.source && !existsSync(join(dirname(reportPath), f.source))) return `re-check: ${f.source}, which holds the full entry, is missing`;
     const hit = f.paths.filter((p) => touched.has(p));
     return hit.length ? `re-check: ${hit.join(', ')} changed` : 'cited files unchanged';
   };
@@ -131,4 +150,4 @@ if (require.main === module) {
   }
 }
 
-module.exports = { citedPaths, delta, findings, sections };
+module.exports = { citedPaths, decodePath, delta, findings, sections };

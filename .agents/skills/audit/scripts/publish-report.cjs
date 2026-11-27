@@ -9,12 +9,19 @@ const UTF8_BOM = Buffer.from([0xef, 0xbb, 0xbf]);
 const AUTO_COUNTS = /^\|(?:[ \t]*auto[ \t]*\|){5}[ \t]*$/m;
 
 // A Summary counts row written as "| auto | auto | auto | auto | auto |" gets the counts of the active findings.
+// Only the row inside the Summary section is replaced, never an "auto" row quoted elsewhere.
 function fillCounts(contents) {
   const text = contents.toString('utf8');
-  if (!AUTO_COUNTS.test(text)) return contents;
+  const summary = /^## Summary[ \t]*\r?$/m.exec(text);
+  if (!summary) return contents;
+  const end = text.slice(summary.index + summary[0].length).search(/^## /m);
+  const stop = end < 0 ? text.length : summary.index + summary[0].length + end;
+  const section = text.slice(summary.index, stop);
+  if (!AUTO_COUNTS.test(section)) return contents;
+  const fill = (row) => text.slice(0, summary.index) + section.replace(AUTO_COUNTS, row) + text.slice(stop);
   const { checkBytes } = require('./check-report.cjs');
-  const { activeCounts } = checkBytes(Buffer.from(text.replace(AUTO_COUNTS, '| 0 | 0 | 0 | 0 | 0 |')), 'draft.md');
-  return Buffer.from(text.replace(AUTO_COUNTS, `| ${activeCounts.join(' | ')} |`));
+  const { activeCounts } = checkBytes(Buffer.from(fill('| 0 | 0 | 0 | 0 | 0 |')), 'draft.md');
+  return Buffer.from(fill(`| ${activeCounts.join(' | ')} |`));
 }
 
 function publishReport(draft, destination, validate, forbid) {

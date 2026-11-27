@@ -33,9 +33,13 @@ function gitState(root) {
     return { branch: 'outside Git', changes: 'Git state unavailable: the target is outside Git.' };
   }
   const name = git(root, ['symbolic-ref', '--short', '-q', 'HEAD']);
-  const commit = git(root, ['rev-parse', '--short', 'HEAD']);
+  // -q --verify fails silently only when HEAD has no commit yet; any other failure prints an error.
+  const head = spawnSync('git', ['--no-optional-locks', '-C', root, 'rev-parse', '-q', '--verify', '--short', 'HEAD'], { encoding: 'utf8' });
+  if (head.status !== 0 && head.stderr.trim()) throw new Error(`git rev-parse HEAD failed: ${head.stderr.trim()}`);
+  const commit = head.status === 0 ? head.stdout.trim() : null;
   const branch = `${name ?? 'detached HEAD'}, ${commit ? `commit \`${commit}\`` : 'no commit yet'}`;
-  const status = git(root, ['-c', 'core.quotepath=off', 'status', '--short', '--untracked-files=all', '--', '.']) ?? '';
+  const status = git(root, ['-c', 'core.quotepath=off', 'status', '--short', '--untracked-files=all', '--', '.']);
+  if (status === null) throw new Error('git status failed: the local changes cannot be recorded');
   // Report files are excluded, as SKILL.md asks, unless reports are in scope.
   const lines = status.split(/\r?\n/).filter((l) => l && !/(?:^|[ "])audits\//.test(l.slice(3)));
   return { branch, changes: lines.length ? `\n${lines.map((l) => `  - \`${l}\``).join('\n')}` : 'none' };

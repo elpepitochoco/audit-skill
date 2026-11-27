@@ -78,7 +78,7 @@ test('lists changes since the baseline commit and which open findings to re-chec
   assert.match(out, /^- M src\/a\.js$/m);
   assert.match(out, /^- A src\/c\.js$/m);
   assert.match(out, /^- \? notes\.txt$/m);
-  assert.doesNotMatch(out, /audits\/base\.md$/m);
+  assert.doesNotMatch(out, /^- \S+ audits\//m, 'the report folder is not a change');
   assert.match(out, /GEN-01 · High · New: re-check: src\/a\.js changed/);
   assert.match(out, /GEN-02 · Medium · New: cited files unchanged; full entry in base\.md \[cites src\/b\.js\]/);
   assert.match(out, /GEN-03 · Low · New: re-check: cites no file/);
@@ -94,9 +94,38 @@ test('a carried entry keeps pointing to the report holding the full entry', (t) 
     '### GEN-02 · Medium · Quality / Tests and CI · Confirmed · Still present\n\n- **Carried** `src/b.js` unchanged since `abc1234`; full entry in [the first report](2026-11-20_10-00-00-general.md).',
   );
   writeFileSync(join(root, 'audits', 'second.md'), carried);
+  const missing = run(root, join(root, 'audits', 'second.md'));
+  assert.equal(missing.status, 0, missing.stderr);
+  assert.match(missing.stdout, /GEN-02 · Medium · Still present: re-check: 2026-11-20_10-00-00-general\.md, which holds the full entry, is missing/);
+
+  writeFileSync(join(root, 'audits', '2026-11-20_10-00-00-general.md'), report(commit));
   const result = run(root, join(root, 'audits', 'second.md'));
   assert.equal(result.status, 0, result.stderr);
   assert.match(result.stdout, /GEN-02 · Medium · Still present: cited files unchanged; full entry in 2026-11-20_10-00-00-general\.md \[cites src\/b\.js\]/);
+});
+
+test('a malformed link encoding is kept as written', () => {
+  const { citedPaths } = require(script);
+  assert.deepEqual(citedPaths('[a](../src/my%20file.js#L2) [b](../src/%E0%A4%A.js)'), ['src/my file.js', 'src/%E0%A4%A.js']);
+});
+
+test('dependency and secret findings are re-checked even when their files are unchanged', (t) => {
+  const { root, commit } = repo(t);
+  mkdirSync(join(root, 'audits'));
+  writeFileSync(join(root, 'audits', 'base.md'), report(commit).replace('Quality / Tests and CI', 'Security / Dependencies and security configuration'));
+  const result = run(root, join(root, 'audits', 'base.md'));
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, /GEN-02 · Medium · New: re-check: depends on facts outside the repository/);
+});
+
+test('a failing git command requires a full audit instead of reporting no change', (t) => {
+  const { root, commit } = repo(t);
+  mkdirSync(join(root, 'audits'));
+  writeFileSync(join(root, 'audits', 'base.md'), report(commit));
+  writeFileSync(join(root, '.git', 'index'), 'corrupt');
+  const result = run(root, join(root, 'audits', 'base.md'));
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, /full audit required: git could not list the changes/);
 });
 
 test('requires a full audit when the baseline commit is unusable', (t) => {
@@ -107,6 +136,7 @@ test('requires a full audit when the baseline commit is unusable', (t) => {
     [report(commit, '\n  - `?? draft.md`'), /full audit required: the baseline audited uncommitted changes/],
     [report('0123456789abcdef'), /full audit required: commit 0123456789abcdef is not in this repository/],
     [report('x').replace(/commit `x`/, 'no commit yet'), /full audit required: the baseline records no commit/],
+    [report('x').replace(/main, commit `x`/, 'fix/deadbeef1, no commit yet'), /full audit required: the baseline records no commit/],
   ];
   cases.forEach(([text, expected], i) => {
     writeFileSync(join(dir, `${i}.md`), text);

@@ -19,7 +19,8 @@ Look further back than the baseline in the compatible history only to find earli
 Choose the baseline before examining. When the scripts can run, run `node <skill-dir>/scripts/baseline-delta.cjs <target-root> <baseline-report>`; otherwise list the same changes with `git diff --name-status -M <baseline-commit>` and the untracked files. When it prints `Mode: incremental` and the applied criteria and references are unchanged (step 3 above):
 
 - Examine only the files it lists as changed, with what they affect (callers, configuration, documentation that describes them), and pass them to the pre-scan as path prefixes. New gaps can only come from these changes.
-- Re-check every open finding marked `re-check`.
+- Re-check every open finding marked `re-check`. The script marks this way the findings on dependencies or secrets, whose conclusion can change with no file changing (a new advisory, a revoked or leaked key), and those whose full entry is in a report that is missing.
+- When dependencies or secrets are in scope, run their checks on the whole scope, not only on the changed files.
 - A finding marked `cited files unchanged` whose cause lies in those files is re-checked by that unchanged evidence: mark it **Still present** and write it as a carried entry ([report.md](report.md)), for example `- **Carried** \`src/config.js\` unchanged since \`a1b2c3d\`; full entry in [2026-11-20_10-00-00-general.md](2026-11-20_10-00-00-general.md).` Re-check it in the code anyway when a changed file can affect it (a caller, a shared configuration, a dependency).
 - In **Coverage and limitations**, count the unchanged files as not read, "unchanged since `<commit>`, covered by `<baseline report>`". Name the baseline commit in **Changes since baseline**.
 

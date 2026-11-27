@@ -270,6 +270,7 @@ function checkBytes(bytes, file, forbid = []) {
         const detail = bulletDetails(block[carriedIndex].slice('- **Carried**'.length), rawPart, i + 1 + carriedIndex, end);
         if (status !== 'Still present') errors.push(`${where}: only a Still present finding can be a **Carried** entry`);
         else if (!/\]\([^)\s]+\.md(?:#[^)\s]*)?\)/.test(detail)) errors.push(`${where}: **Carried** must link the report holding the full entry`);
+        else if (!/`[0-9a-f]{7,64}`/.test(detail)) errors.push(`${where}: **Carried** must name the commit its files are unchanged since, in backticks`);
       }
       for (const label of carriedIndex >= 0 ? [] : requiredLabels) {
         const prefix = `- **${label}**`;

@@ -68,13 +68,23 @@ test('a filled draft publishes with the Summary counts computed from the finding
     .replace(/<fill: n>/g, '1')
     .replace(/<fill: [^>]*>/g, 'Filled.')
     .replace('**Criteria mode** Filled.', '**Criteria mode** built-in grid');
-  writeFileSync(draft, filled);
+  const quoted = '```text\n| auto | auto | auto | auto | auto |\n```\n';
+  writeFileSync(draft, `${filled}\nThe skeleton's counts row, quoted:\n\n${quoted}`);
 
   const published = node('publish-report.cjs', '--check', draft, destination);
   assert.equal(published.status, 0, published.stderr);
   const report = readFileSync(published.stdout.trim(), 'utf8');
   assert.match(report, /^\| 0 \| 0 \| 1 \| 0 \| 0 \|$/m);
+  assert.ok(report.includes(quoted), 'an auto row outside the Summary is left as written');
   assert.equal(node('check-report.cjs', published.stdout.trim()).status, 0);
+});
+
+test('stops instead of recording "none" when git status fails', (t) => {
+  const root = repo(t);
+  writeFileSync(join(root, '.git', 'index'), 'corrupt');
+  const result = node('report-skeleton.cjs', root, 'general');
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /git status failed/);
 });
 
 test('names a later run baseline as a placeholder and records detached or unborn heads', (t) => {

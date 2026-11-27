@@ -1,5 +1,14 @@
 # Changelog
 
+## 2.5.1
+
+- Incremental re-audit: a failing `git diff` or `git ls-files` requires a full audit instead of reading as no change; findings on dependencies or secrets are always re-checked, and their checks run on the whole scope; a carried entry whose full-entry report is missing is re-checked; a branch name that looks like a hash is no longer read as the baseline commit.
+- The checker requires a carried entry to name, in backticks, the commit its files are unchanged since.
+- `report-skeleton.cjs` stops when `git status` or `git rev-parse` fails instead of recording no local changes.
+- `publish-report.cjs` fills the `auto` counts row only inside Summary.
+- SARIF: the location comes from the Observed bullet first, link encoding is kept, and a finding with no cited file points to its heading in the report, since GitHub code scanning rejects results with no location.
+- Tests pass on CI runners with no Git identity and with `/` path separators.
+
 ## 2.5.0
 
 - Carried entries: in an incremental re-audit, a Still present finding whose cited files are unchanged is written as one `- **Carried**` bullet linking the report that holds its full entry, instead of repeating Expected, Observed and Impact. `baseline-delta.cjs` follows the chain to that report. The checker accepts the bullet only on Still present findings and still counts them; earlier reports stay valid.
