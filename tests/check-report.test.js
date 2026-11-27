@@ -208,6 +208,17 @@ test('tracked findings require a nonempty baseline changes section', (t) => {
   assert.deepEqual(checkText(t, withBaselineChanges(report)), []);
 });
 
+test('a Still present finding with unchanged evidence can be a carried entry linking its full entry', (t) => {
+  const evidence = /- \*\*Expected\*\*[\s\S]*?- \*\*Impact\*\* The example fails when copied\./;
+  const carried = (status, bullet) => withBaselineChanges(validReport.replace('· New', `· ${status}`).replace(evidence, bullet));
+  const link = '- **Carried** Unchanged since `abc1234`; full entry in [the baseline](2026-11-20_10-00-00-docs.md).';
+  assert.deepEqual(checkText(t, carried('Still present', link)), []);
+  assert.ok(checkText(t, carried('New', link)).some((e) => e.includes('only a Still present finding can be a **Carried** entry')));
+  assert.ok(checkText(t, carried('Still present', '- **Carried** Unchanged since the baseline.')).some((e) => e.includes('must link the report')));
+  const wrongCount = carried('Still present', link).replace('| 0 | 0 | 0 | 1 | 0 |', '| 0 | 0 | 0 | 0 | 0 |');
+  assert.ok(checkText(t, wrongCount).some((e) => e.includes('differ from active findings')), 'carried entries stay counted');
+});
+
 test('rejects finding bullets that have a label without supporting content', (t) => {
   const report = validReport
     .replace('- **Observed** The example in README.md:4 uses an old field name.', '- **Observed**')

@@ -80,10 +80,23 @@ test('lists changes since the baseline commit and which open findings to re-chec
   assert.match(out, /^- \? notes\.txt$/m);
   assert.doesNotMatch(out, /audits\/base\.md$/m);
   assert.match(out, /GEN-01 · High · New: re-check: src\/a\.js changed/);
-  assert.match(out, /GEN-02 · Medium · New: cited files unchanged \[cites src\/b\.js\]/);
+  assert.match(out, /GEN-02 · Medium · New: cited files unchanged; full entry in base\.md \[cites src\/b\.js\]/);
   assert.match(out, /GEN-03 · Low · New: re-check: cites no file/);
   assert.doesNotMatch(out, /GEN-04/);
   assert.match(out, /## Planned later \(1\)[\s\S]*GEN-05 · Medium: cited files unchanged/);
+});
+
+test('a carried entry keeps pointing to the report holding the full entry', (t) => {
+  const { root, commit } = repo(t);
+  mkdirSync(join(root, 'audits'));
+  const carried = report(commit).replace(
+    /### GEN-02 · Medium · Quality \/ Tests and CI · Confirmed · New\n\n- \*\*Observed\*\* `src\/b\.js:1` has no test\./,
+    '### GEN-02 · Medium · Quality / Tests and CI · Confirmed · Still present\n\n- **Carried** `src/b.js` unchanged since `abc1234`; full entry in [the first report](2026-11-20_10-00-00-general.md).',
+  );
+  writeFileSync(join(root, 'audits', 'second.md'), carried);
+  const result = run(root, join(root, 'audits', 'second.md'));
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, /GEN-02 · Medium · Still present: cited files unchanged; full entry in 2026-11-20_10-00-00-general\.md \[cites src\/b\.js\]/);
 });
 
 test('requires a full audit when the baseline commit is unusable', (t) => {

@@ -7,7 +7,8 @@
 
 const { spawnSync } = require('node:child_process');
 const { readFileSync } = require('node:fs');
-const { resolve } = require('node:path');
+const { basename, resolve } = require('node:path');
+const { reportLines } = require('./report-markdown.cjs');
 
 function git(root, args) {
   const r = spawnSync('git', ['--no-optional-locks', '-C', root, '-c', 'core.quotepath=off', '-c', 'diff.autoRefreshIndex=false', ...args],
@@ -23,11 +24,13 @@ function headerValue(text, label) {
 function sections(text) {
   const out = {};
   let current = null;
-  for (const line of text.split(/\r?\n/)) {
-    const h = /^ {0,3}## (.+?)\s*$/.exec(line);
+  const { visible, structural } = reportLines(text);
+  visible.forEach((line, i) => {
+    const h = /^## (.+?)\s*$/.exec(structural[i]);
     if (h) out[(current = h[1])] = [];
-    else if (current) out[current].push(line);
-  }
+    // Indent fenced or commented lines by four spaces so a heading quoted as evidence is not read as one.
+    else if (current) out[current].push(structural[i] || !line.trim() ? line : `    ${line}`);
+  });
   return out;
 }
 
@@ -44,11 +47,17 @@ function findings(lines = []) {
   for (const line of lines) {
     const h = /^ {0,3}### (.+?)\s*$/.exec(line);
     if (h) {
-      const [id, priority, , , status] = h[1].split(' · ').map((s) => s.trim());
-      list.push({ id, priority, status, body: [] });
+      const [id, priority, pair, certainty, status] = h[1].split(' · ').map((s) => s.trim());
+      list.push({ id, priority, pair, certainty, status, body: [] });
     } else if (list.length) list[list.length - 1].body.push(line);
   }
-  return list.map((f) => ({ ...f, paths: citedPaths(f.body.join('\n')) }));
+  return list.map((f) => {
+    const body = f.body.join('\n');
+    // A carried entry points to the report holding the full entry; keep that pointer along the chain.
+    const source = /^- \*\*Carried\*\*.*?\]\(([^)\s#]+\.md)/m.exec(body)?.[1];
+    const title = /^\*\*(\S.*)\*\*\s*$/m.exec(body)?.[1];
+    return { ...f, title, body, source, paths: citedPaths(body) };
+  });
 }
 
 function delta(root, reportPath) {
@@ -101,7 +110,10 @@ function main() {
     out.push('');
   }
   out.push(`## Open findings (${open.length})`);
-  for (const f of open) out.push(`- ${f.id} · ${f.priority} · ${f.status}: ${mark(f)}${f.paths.length ? ` [cites ${f.paths.join(', ')}]` : ''}`);
+  for (const f of open) {
+    const full = mark(f) === 'cited files unchanged' ? `; full entry in ${f.source ?? basename(report)}` : '';
+    out.push(`- ${f.id} · ${f.priority} · ${f.status}: ${mark(f)}${full}${f.paths.length ? ` [cites ${f.paths.join(', ')}]` : ''}`);
+  }
   if (!open.length) out.push('none');
   if (planned.length) {
     out.push('', `## Planned later (${planned.length}): check each deadline or milestone`);
@@ -119,4 +131,4 @@ if (require.main === module) {
   }
 }
 
-module.exports = { citedPaths, delta };
+module.exports = { citedPaths, delta, findings, sections };

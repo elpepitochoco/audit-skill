@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.5.0
+
+- Carried entries: in an incremental re-audit, a Still present finding whose cited files are unchanged is written as one `- **Carried**` bullet linking the report that holds its full entry, instead of repeating Expected, Observed and Impact. `baseline-delta.cjs` follows the chain to that report. The checker accepts the bullet only on Still present findings and still counts them; earlier reports stay valid.
+- Pre-scan detectors: CI workflows (`pull_request_target` with a checkout, no `permissions`, `write-all`, actions not pinned to a commit SHA, untrusted event fields expanded), container files (`latest` or missing tag, final stage as root, secrets set by `ENV` or `ARG`), committed `.env` files, and HTML pages with no title or language.
+- SARIF: `scripts/report-sarif.cjs` converts a report to SARIF 2.1.0 for CI and GitHub code scanning; Planned later closures are suppressed results.
+
 ## 2.4.0
 
 - Incremental re-audit: `scripts/baseline-delta.cjs` compares the target with the commit the baseline audited and marks each open finding re-check or cited files unchanged. With unchanged criteria, a re-audit examines only the changed files and the findings they touch; the baseline is chosen before examining.

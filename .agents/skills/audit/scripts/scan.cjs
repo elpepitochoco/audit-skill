@@ -174,6 +174,57 @@ function checkDependencies(root, file, text, files, out) {
   }
 }
 
+const WORKFLOW = /(?:^|\/)\.github\/workflows\/[^/]+\.ya?ml$/;
+const DOCKERFILE = /(?:^|\/)(?:Dockerfile|Containerfile)(?:\.[\w-]+)?$|\.Dockerfile$/;
+const ENV_FILE = /(?:^|\/)\.env(?:\.(?!example$|sample$|template$|dist$)[\w-]+)?$/;
+const SECRET_NAME = /(?:PASSWORD|PASSWD|SECRET|TOKEN|API_?KEY|PRIVATE_?KEY|CREDENTIALS?)/i;
+
+// CI workflows, container files, committed environment files and HTML pages: configuration
+// mistakes a reader skims over. Each line is a lead under criteria.md's Security or Accessibility rows.
+function checkConfig(file, text, out) {
+  const lines = text.split(/\r?\n/);
+  if (WORKFLOW.test(file)) {
+    if (/^\s*pull_request_target\s*:/m.test(text) || /^on:\s*\[?[^\n]*pull_request_target/m.test(text)) {
+      out.ci.push(`${file}: runs on pull_request_target${/actions\/checkout/.test(text) ? ' and checks out code' : ''}${/github\.event\.pull_request\.head/.test(text) ? ' from the pull request head' : ''}`);
+    }
+    if (!/^\s*permissions\s*:/m.test(text)) out.ci.push(`${file}: no permissions block, the token gets the repository default`);
+    lines.forEach((line, i) => {
+      if (/^\s*permissions\s*:\s*write-all\b/.test(line)) out.ci.push(`${file}:${i + 1} permissions: write-all`);
+      const uses = /^\s*-?\s*uses\s*:\s*['"]?([^'"\s#]+)/.exec(line)?.[1];
+      if (uses && !uses.startsWith('./') && !uses.startsWith('docker://') && !/@[0-9a-f]{40}$/.test(uses)) {
+        out.ci.push(`${file}:${i + 1} ${uses} is not pinned to a commit SHA`);
+      }
+      const expr = /\$\{\{\s*(github\.(?:event\.(?:issue|pull_request|comment|review|head_commit|commits|discussion)\S*\.(?:title|body|message|ref|label|name|email)|head_ref)\S*)\s*\}\}/.exec(line);
+      if (expr) out.ci.push(`${file}:${i + 1} untrusted \`${expr[1]}\` expanded in the workflow`);
+    });
+  } else if (DOCKERFILE.test(file)) {
+    const stages = new Set();
+    let user = null;
+    lines.forEach((line, i) => {
+      const from = /^\s*FROM\s+(?:--\S+\s+)*(\S+)(?:\s+AS\s+(\S+))?/i.exec(line);
+      if (from) {
+        const image = from[1];
+        if (from[2]) stages.add(from[2].toLowerCase());
+        const tag = /^[^@]*?(?::([^/:@]+))?(?:@.+)?$/.exec(image)?.[1];
+        if (image !== 'scratch' && !stages.has(image.toLowerCase()) && !image.includes('@') && (!tag || tag === 'latest')) {
+          out.containers.push(`${file}:${i + 1} FROM ${image} uses ${tag ? 'the latest tag' : 'no tag'}`);
+        }
+        user = null; // each stage starts as root
+      }
+      const u = /^\s*USER\s+(\S+)/i.exec(line);
+      if (u) user = u[1];
+      const env = /^\s*(?:ENV|ARG)\s+([A-Za-z_][\w]*)\s*[= ]\s*(\S+)/i.exec(line);
+      if (env && SECRET_NAME.test(env[1]) && !/^\$/.test(env[2])) out.containers.push(`${file}:${i + 1} ${env[1]} gets a value in the image`);
+    });
+    if (!user || /^(?:root|0)(?::|$)/.test(user)) out.containers.push(`${file}: the final stage runs as root (no USER)`);
+  } else if (ENV_FILE.test(file)) {
+    out.envFiles.push(`${file}: environment file in the target`);
+  } else if (/\.html?$/i.test(file) && /<html[\s>]/i.test(text)) {
+    if (!/<title[^>]*>\s*\S[\s\S]*?<\/title>/i.test(text)) out.pages.push(`${file}: no page title`);
+    if (!/<html[^>]*\slang\s*=\s*["']?\w/i.test(text)) out.pages.push(`${file}: no page language`);
+  }
+}
+
 const CODE = /\.(?:c?js|mjs|jsx|tsx?|py|go|rb|java|cs|php|rs|kt|swift)$/;
 const TEST = /(?:^|\/)(?:tests?|__tests__|spec)\/|[._-](?:test|spec)\.[a-z]+$|(?:^|\/)test_[^/]+\.py$|_test\.(?:go|py)$/;
 const VENDOR = /(?:^|\/)(?:vendor|third[_-]party|external)\/|\.min\.(?:js|css)$/;
@@ -183,7 +234,7 @@ async function scan(root, prefixes) {
   const all = listFiles(root, inGit);
   const files = prefixes.length ? all.filter((f) => prefixes.some((p) => f === p || f.startsWith(p.replace(/\/?$/, '/')))) : all;
   const fileSet = new Set(all);
-  const out = { secrets: [], history: [], commands: [], links: [], deps: [], vendored: [], unread: [], untested: [] };
+  const out = { secrets: [], history: [], commands: [], links: [], deps: [], ci: [], containers: [], envFiles: [], pages: [], vendored: [], unread: [], untested: [] };
   const current = new Set();
   const texts = new Map();
   for (const file of files) {
@@ -200,6 +251,7 @@ async function scan(root, prefixes) {
       });
       if (/\.(?:md|markdown)$/i.test(file)) checkDocs(root, file, text, out);
       checkDependencies(root, file, text, fileSet, out);
+      checkConfig(file, text, out);
       if (VENDOR.test(file) || (/\.(?:c?js|css)$/.test(file) && text.split('\n', 20).some((l) => l.length > 1000))) out.vendored.push(file);
     } catch (error) {
       out.unread.push(`${file} (${error.code || error.message})`);
@@ -247,6 +299,10 @@ function format(root, prefixes, { inGit, files, tests, sources, out, historyNote
     section('Documented commands with no target', out.commands),
     section('Broken relative links in Markdown', out.links),
     section('Dependencies', out.deps),
+    section('CI workflows', out.ci),
+    section('Container files', out.containers),
+    section('Environment files', out.envFiles),
+    section('HTML pages', out.pages),
     section('Vendored, minified or generated files', out.vendored),
     tests.length ? section('Source files no test file names', out.untested) : '## Source files no test file names\nno test files found\n',
     section('Not scanned', out.unread),

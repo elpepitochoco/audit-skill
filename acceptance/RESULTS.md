@@ -649,3 +649,16 @@ Reports: `../audit-runs/incr/`. One run per tool: a full audit, then a commit ad
 
 - **Tracking is right** with both tools: the first report is the baseline, D2 is **Fixed** after a re-check, every other finding keeps its ID and is **Still present**, unchanged files are cited "unchanged since `<commit>`" (11 and 8 times), and all four reports pass the checker. Both kept D8 open at a lower priority: `npm start` now runs `node src/billing.js`, which loads a library and exits, a defensible reading.
 - **It is not cheaper.** The re-audit reads the whole baseline report (16.5 KB for Codex) and rewrites every carried finding with its full Expected, Observed and Impact bullets (16 of 16 for Codex), so it costs more than the first audit even when only two files changed. Reading only the changed files saves little against that.
+
+### Case 78 again with carried entries (2.5.0)
+
+Reports: `../audit-runs/carried/`. Same case, carried entries allowed for Still present findings whose cited files are unchanged.
+
+| Tool | Step 1 fresh / out / turns | Step 2 fresh / out / turns | Carried entries | Step 2 cost vs step 1 |
+| --- | --- | --- | --- | --- |
+| Claude Code | 29k / 9.2k / 12 | 44k / 12.9k / 28 | 7 of 16 | $0.77 vs $0.46 |
+| Codex | 45k / 5.5k / 13 | 31k / 5.5k / 20 | 6 of 16 | fresh input −32%, output equal |
+
+- Both tools used the carried form and both reports pass the checker; D2 is Fixed, every ID is kept.
+- Only 6 or 7 findings could be carried: the others cite `src/users.js`, `README.md` or `package.json`, which the fixes changed. The re-audit report is as long as the first one.
+- On this 12-file fixture the re-audit still costs about as much as the first audit with Codex and more with Claude Code. Its fixed costs (reading the baseline report and `tracking.md`, running the delta, writing Changes since baseline, more turns) outweigh the files it skips. The saving should appear on repositories where most files are unchanged; no such case has been measured yet.

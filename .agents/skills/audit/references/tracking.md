@@ -20,7 +20,7 @@ Choose the baseline before examining. When the scripts can run, run `node <skill
 
 - Examine only the files it lists as changed, with what they affect (callers, configuration, documentation that describes them), and pass them to the pre-scan as path prefixes. New gaps can only come from these changes.
 - Re-check every open finding marked `re-check`.
-- A finding marked `cited files unchanged` whose cause lies in those files is re-checked by that unchanged evidence: mark it **Still present**, cite the baseline's evidence and "unchanged since `<commit>`". Re-check it in the code anyway when a changed file can affect it (a caller, a shared configuration, a dependency).
+- A finding marked `cited files unchanged` whose cause lies in those files is re-checked by that unchanged evidence: mark it **Still present** and write it as a carried entry ([report.md](report.md)), for example `- **Carried** \`src/config.js\` unchanged since \`a1b2c3d\`; full entry in [2026-11-20_10-00-00-general.md](2026-11-20_10-00-00-general.md).` Re-check it in the code anyway when a changed file can affect it (a caller, a shared configuration, a dependency).
 - In **Coverage and limitations**, count the unchanged files as not read, "unchanged since `<commit>`, covered by `<baseline report>`". Name the baseline commit in **Changes since baseline**.
 
 When it prints `Mode: full audit required`, audit the whole scope as usual and give its reason in **Baseline**. The user can also ask for a full re-audit.

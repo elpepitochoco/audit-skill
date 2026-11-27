@@ -125,3 +125,39 @@ test('survives symbolic links, malformed links and a failing git log, and masks 
   assert.equal(failing.status, 0, failing.stderr);
   assert.match(failing.stdout, /Note: incomplete: git log failed/);
 });
+
+test('flags CI, container, environment-file and HTML page leads without flagging safe forms', (t) => {
+  const root = mkdtempSync(join(tmpdir(), 'audit-scan-config-'));
+  t.after(() => rmSync(root, { recursive: true }));
+  mkdirSync(join(root, '.github', 'workflows'), { recursive: true });
+  const sha = 'a'.repeat(40);
+  writeFileSync(join(root, '.github', 'workflows', 'pr.yml'), [
+    'on:', '  pull_request_target:', 'jobs:', '  t:', '    steps:',
+    '      - uses: actions/checkout@v4', '        with:', '          ref: ${{ github.event.pull_request.head.sha }}',
+    `      - uses: org/tool@${sha}`, '      - uses: ./local-action',
+    '      - run: echo "${{ github.event.pull_request.title }}"',
+  ].join('\n'));
+  writeFileSync(join(root, '.github', 'workflows', 'ok.yml'), `on: push\npermissions:\n  contents: read\njobs:\n  t:\n    steps:\n      - uses: actions/checkout@${sha}\n`);
+  writeFileSync(join(root, 'Dockerfile'), 'FROM node:22 AS build\nRUN make\nFROM build\nARG NPM_TOKEN\nENV API_KEY=abc123\nENV PORT=8080\n');
+  writeFileSync(join(root, 'Dockerfile.ok'), 'FROM node@sha256:abcd\nENV API_KEY=$API_KEY\nUSER node\n');
+  writeFileSync(join(root, '.env'), 'X=1\n');
+  writeFileSync(join(root, '.env.example'), 'X=\n');
+  writeFileSync(join(root, 'page.html'), '<!doctype html><html><head></head><body></body></html>');
+  writeFileSync(join(root, 'ok.html'), '<html lang="en"><head><title>Home</title></head></html>');
+
+  const result = run(root, root);
+  assert.equal(result.status, 0, result.stderr);
+  const out = result.stdout;
+  assert.match(out, /pr\.yml: runs on pull_request_target and checks out code from the pull request head/);
+  assert.match(out, /pr\.yml: no permissions block/);
+  assert.match(out, /pr\.yml:6 actions\/checkout@v4 is not pinned/);
+  assert.match(out, /pr\.yml:11 untrusted `github\.event\.pull_request\.title` expanded/);
+  assert.doesNotMatch(out, /org\/tool|local-action|ok\.yml/);
+  assert.match(out, /Dockerfile:5 API_KEY gets a value in the image/);
+  assert.match(out, /- Dockerfile: the final stage runs as root/);
+  assert.doesNotMatch(out, /FROM node:22|FROM build|NPM_TOKEN|PORT|Dockerfile\.ok/);
+  assert.match(out, /- \.env: environment file in the target/);
+  assert.doesNotMatch(out, /\.env\.example/);
+  assert.match(out, /- page\.html: no page title\n- page\.html: no page language/);
+  assert.doesNotMatch(out, /ok\.html/);
+});

@@ -264,7 +264,14 @@ function checkBytes(bytes, file, forbid = []) {
       const block = part.slice(i + 1, end);
       const title = block.find((line) => line.trim())?.trim() ?? '';
       if (!/^\*\*\S.*\*\*$/.test(title)) errors.push(`${where}: finding needs a one-line title before its evidence`);
-      for (const label of requiredLabels) {
+      // A Still present finding whose evidence is unchanged may point to the report holding its full entry.
+      const carriedIndex = block.findIndex((line) => line.startsWith('- **Carried**'));
+      if (carriedIndex >= 0) {
+        const detail = bulletDetails(block[carriedIndex].slice('- **Carried**'.length), rawPart, i + 1 + carriedIndex, end);
+        if (status !== 'Still present') errors.push(`${where}: only a Still present finding can be a **Carried** entry`);
+        else if (!/\]\([^)\s]+\.md(?:#[^)\s]*)?\)/.test(detail)) errors.push(`${where}: **Carried** must link the report holding the full entry`);
+      }
+      for (const label of carriedIndex >= 0 ? [] : requiredLabels) {
         const prefix = `- **${label}**`;
         const bulletIndex = block.findIndex((line) => line.startsWith(prefix));
         if (bulletIndex < 0) {
