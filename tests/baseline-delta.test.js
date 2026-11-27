@@ -13,7 +13,7 @@ const git = (cwd, ...args) => {
   assert.equal(r.status, 0, r.stderr);
   return r.stdout.trim();
 };
-const run = (root, report) => spawnSync(process.execPath, [script, root, report], { encoding: 'utf8' });
+const run = (root, report, ...prefixes) => spawnSync(process.execPath, [script, root, report, ...prefixes], { encoding: 'utf8' });
 
 const report = (commit, changes = 'none') => `# Audit: general
 
@@ -145,4 +145,48 @@ test('requires a full audit when the baseline commit is unusable', (t) => {
     assert.match(result.stdout, expected);
     assert.match(result.stdout, /GEN-02 · Medium · New: re-check \[cites/);
   });
+});
+
+test('a finding left To verify is re-checked even when its files are unchanged', (t) => {
+  const { root, commit } = repo(t);
+  mkdirSync(join(root, 'audits'));
+  writeFileSync(join(root, 'audits', 'base.md'), report(commit).replace('Tests and CI · Confirmed', 'Tests and CI · To verify'));
+  const result = run(root, join(root, 'audits', 'base.md'));
+  assert.match(result.stdout, /GEN-02 · Medium · New: re-check: not confirmed in the baseline/);
+});
+
+test('rotation picks unread unchanged files, riskiest first, and skips those read along the chain', (t) => {
+  const { root, commit } = repo(t);
+  for (const [file, text] of [['src/auth.js', 'a'], ['src/util.js', 'u'], ['test/auth.test.js', 't'], ['logo.png', 'p'], ['lib/seen.js', 's']]) {
+    mkdirSync(join(root, file, '..'), { recursive: true });
+    writeFileSync(join(root, file), `${text}\n`);
+  }
+  git(root, 'add', '.');
+  git(root, 'commit', '-qm', 'More files');
+  const head = git(root, 'rev-parse', '--short', 'HEAD');
+  mkdirSync(join(root, 'audits'));
+  // The first report read lib/seen.js in rotation; the second names it as its baseline.
+  writeFileSync(join(root, 'audits', 'first.md'), `${report(commit)}\n- **Rotation** \`lib/seen.js\` read in full.\n`);
+  writeFileSync(join(root, 'audits', 'second.md'), report(head).replace('None: first audit', '[first](first.md), the latest report'));
+  const result = run(root, join(root, 'audits', 'second.md'));
+  assert.equal(result.status, 0, result.stderr);
+  const picked = result.stdout.split('## Rotation')[1].match(/^- `[^`]+`$/gm);
+  // src/a.js and src/b.js are cited by findings, logo.png is not text.
+  assert.deepEqual(picked, ['- `src/auth.js`', '- `src/util.js`', '- `test/auth.test.js`']);
+  assert.match(result.stdout, /3 of 6 unchanged text files are named by no Rotation bullet and cited by no finding in the 2 report\(s\)/);
+  assert.doesNotMatch(result.stdout, /No report in the chain has a Rotation bullet/);
+
+  const scoped = run(root, join(root, 'audits', 'second.md'), 'test');
+  assert.deepEqual(scoped.stdout.split('## Rotation')[1].match(/^- `[^`]+`$/gm), ['- `test/auth.test.js`']);
+});
+
+test('names with tabs or line breaks are listed whole', { skip: process.platform === 'win32' }, (t) => {
+  const { root, commit } = repo(t);
+  mkdirSync(join(root, 'audits'));
+  writeFileSync(join(root, 'audits', 'base.md'), report(commit));
+  writeFileSync(join(root, 'src', 'odd\tname\n.js'), 'x\n');
+  git(root, 'add', '.');
+  git(root, 'commit', '-qm', 'Odd name');
+  const result = run(root, join(root, 'audits', 'base.md'));
+  assert.ok(result.stdout.includes('- A src/odd\tname\n.js'), result.stdout);
 });

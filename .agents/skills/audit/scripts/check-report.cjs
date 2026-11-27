@@ -213,6 +213,9 @@ function checkBytes(bytes, file, forbid = []) {
         errors.push(`Coverage and limitations needs a **${label}** bullet with counts`);
       }
     }
+    // The next re-audit reads this list to know which files were read; it must name them.
+    const rotation = coverage.find((line) => line.startsWith('- **Rotation**'));
+    if (rotation !== undefined && !/`[^`]+`/.test(rotation)) errors.push('**Rotation** must name the files read in full, each in backticks');
   }
 
   // Findings: heading format, grid pairs, unique IDs, required bullets.
@@ -271,6 +274,19 @@ function checkBytes(bytes, file, forbid = []) {
         if (status !== 'Still present') errors.push(`${where}: only a Still present finding can be a **Carried** entry`);
         else if (!/\]\([^)\s]+\.md(?:#[^)\s]*)?\)/.test(detail)) errors.push(`${where}: **Carried** must link the report holding the full entry`);
         else if (!/`[0-9a-f]{7,64}`/.test(detail)) errors.push(`${where}: **Carried** must name the commit its files are unchanged since, in backticks`);
+        else if (path.basename(path.dirname(path.resolve(file))) === 'audits') {
+          // In audits/, the linked report must exist and hold this finding; a draft elsewhere cannot resolve the link.
+          const link = /\]\(([^)\s#]+\.md)/.exec(detail)[1];
+          let target = null;
+          try {
+            target = fs.readFileSync(path.join(path.dirname(path.resolve(file)), decodeURIComponent(link)), 'utf8');
+          } catch {
+            errors.push(`${where}: **Carried** links ${link}, which is not in audits/`);
+          }
+          if (target !== null && !target.split(/\r?\n/).some((line) => line.startsWith(`### ${id} ·`))) {
+            errors.push(`${where}: **Carried** links ${link}, which has no finding ${id}`);
+          }
+        }
       }
       for (const label of carriedIndex >= 0 ? [] : requiredLabels) {
         const prefix = `- **${label}**`;

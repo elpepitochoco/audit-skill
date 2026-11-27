@@ -3,7 +3,7 @@ name: audit
 description: Audit a repository or a defined target against explicit criteria and write an evidenced, prioritized Markdown report in audits/, tracked across runs. Use for requested audits of code, architecture, security, documentation, accessibility, data, or processes, including defensive code and configuration reviews, audits of a commit or diff against its stated goal, performance or operability audits on request, and re-audits that check earlier findings.
 license: MIT
 metadata:
-  version: "2.6.0"
+  version: "2.7.0"
 ---
 
 # Audit

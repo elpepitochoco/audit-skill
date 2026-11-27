@@ -701,3 +701,4 @@ Cases 42 to 76 come from the `codex` branch, where they were numbered 22 to 56. 
 1. In a copy of Express v5.1.0 (225 files) with the skill committed, run `audit` with no parameters.
 2. In `examples/hello-world/index.js`, replace `!module.parent` with `require.main === module`, and commit. Run `audit` with no parameters again.
 3. Expect the first report as baseline and an incremental re-audit: only `examples/hello-world/index.js` examined, findings on other files carried, IDs kept. Expect the second step to cost clearly less than the first; compare them with `usage.js`.
+4. Case `79b` replays step 2 on the same repository with the current skill, keeping only the first report: expect, in addition, the files `baseline-delta.cjs` lists under Rotation read in full and named in a **Rotation** bullet.

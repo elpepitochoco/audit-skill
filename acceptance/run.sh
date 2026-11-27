@@ -426,6 +426,12 @@ EOF
   commit c79 "Replace deprecated module.parent in hello-world"
   cx c79 s2 ""
   ;;
+79b)
+  # Step 2 of case 79 again with the current skill, on case 79's repository: only the first report is kept.
+  R="$B/c79"; ls "$R/audits" | sort | tail -n +2 | while read -r f; do rm "$R/audits/$f"; done
+  skill "$R"; commit c79 "Update the audit skill"
+  cx c79 s2b ""
+  ;;
 nodegoat)
   pub nodegoat OWASP/NodeGoat c5cb68a7084e4ae7dcc60e6a98768720a81841e8; rm -rf "$R/app/views/tutorial"; pinit
   cx nodegoat run "Audit the security of this application."

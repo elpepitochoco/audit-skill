@@ -161,3 +161,51 @@ test('flags CI, container, environment-file and HTML page leads without flagging
   assert.match(out, /- page\.html: no page title\n- page\.html: no page language/);
   assert.doesNotMatch(out, /ok\.html/);
 });
+
+test('does not read through a parent folder that links outside the target', (t) => {
+  const root = mkdtempSync(join(tmpdir(), 'audit-scan-parent-'));
+  const outside = mkdtempSync(join(tmpdir(), 'audit-scan-outside-'));
+  t.after(() => { rmSync(root, { recursive: true, force: true }); rmSync(outside, { recursive: true, force: true }); });
+  mkdirSync(join(root, 'conf'));
+  writeFileSync(join(root, 'conf', 'keys.txt'), 'nothing\n');
+  git(root, 'init', '-q');
+  git(root, 'add', '.');
+  git(root, 'commit', '-qm', 'Initial');
+  // The tracked folder is replaced by a link to a folder outside the target holding a file of the same name.
+  rmSync(join(root, 'conf'), { recursive: true });
+  writeFileSync(join(outside, 'keys.txt'), `token = '${treeKey}'\n`);
+  symlinkSync(outside, join(root, 'conf'), 'junction');
+  const result = run(root, '.');
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, /conf\/keys\.txt \(a parent folder links outside the target\)/);
+  assert.doesNotMatch(result.stdout, /GitHub token/);
+});
+
+test('masks every secret on a line and names the files behind a truncated section', (t) => {
+  const root = mkdtempSync(join(tmpdir(), 'audit-scan-many-'));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const second = `ghp_${'y'.repeat(36)}`;
+  const lines = Array.from({ length: 44 }, (_, i) => `const k${i} = 1;`);
+  lines.unshift(`const a = '${treeKey}', b = '${second}', c = '${historyKey}';`);
+  writeFileSync(join(root, 'many.js'), `${lines.join('\n')}\n`);
+  writeFileSync(join(root, 'more.js'), Array.from({ length: 45 }, (_, i) => `const t${i} = 'ghp_${String(i).padStart(36, 'z')}';`).join('\n'));
+  const result = run(root, '.');
+  assert.equal(result.status, 0, result.stderr);
+  for (const value of [treeKey, second, historyKey]) assert.ok(!result.stdout.includes(value), 'no secret is printed');
+  assert.match(result.stdout, /^- many\.js:1 GitHub token[\s\S]*^- many\.js:1 GitHub token[\s\S]*^- many\.js:1 API key/m);
+  assert.match(result.stdout, /^- … 8 more, in more\.js \(8\): read those files, or rerun with narrower path prefixes$/m);
+});
+
+test('stops reading the history at its byte limit and says so', async (t) => {
+  const { scan } = require(script);
+  const root = mkdtempSync(join(tmpdir(), 'audit-scan-cap-'));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  git(root, 'init', '-q');
+  for (let i = 0; i < 5; i++) {
+    writeFileSync(join(root, 'notes.txt'), `${'line\n'.repeat(50)}${i}\n`);
+    git(root, 'add', '.');
+    git(root, 'commit', '-qm', `Note ${i}`);
+  }
+  const { historyNote } = await scan(root, [], { maxHistoryBytes: 400 });
+  assert.match(historyNote, /^stopped after 0 MB of patches, at commit [0-9a-f]+ /);
+});

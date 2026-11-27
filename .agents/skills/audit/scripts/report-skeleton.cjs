@@ -29,8 +29,14 @@ function localStamp(date) {
 }
 
 function gitState(root) {
-  if (git(root, ['rev-parse', '--is-inside-work-tree']) === null) {
+  const inside = spawnSync('git', ['--no-optional-locks', '-C', root, 'rev-parse', '--is-inside-work-tree'], { encoding: 'utf8' });
+  if (inside.error) throw new Error(`git cannot run (${inside.error.code ?? inside.error.message}): record the state by hand`);
+  // Only "not a git repository" means outside Git; any other failure (unsafe ownership, corruption) is not that.
+  if (inside.status !== 0 && /not a git repository/i.test(inside.stderr)) {
     return { branch: 'outside Git', changes: 'Git state unavailable: the target is outside Git.' };
+  }
+  if (inside.status !== 0 || inside.stdout.trim() !== 'true') {
+    throw new Error(`git rev-parse failed: ${inside.stderr.trim() || inside.stdout.trim() || `exit ${inside.status}`}`);
   }
   const name = git(root, ['symbolic-ref', '--short', '-q', 'HEAD']);
   // -q --verify fails silently only when HEAD has no commit yet; any other failure prints an error.

@@ -87,6 +87,14 @@ test('stops instead of recording "none" when git status fails', (t) => {
   assert.match(result.stderr, /git status failed/);
 });
 
+test('does not take a Git failure other than "not a git repository" for a folder outside Git', (t) => {
+  const root = repo(t);
+  // Inside .git, git answers "false" rather than failing: it is neither a work tree nor outside Git.
+  const result = node('report-skeleton.cjs', join(root, '.git'), 'general');
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /git rev-parse failed/);
+});
+
 test('names a later run baseline as a placeholder and records detached or unborn heads', (t) => {
   const root = repo(t);
   writeFileSync(join(root, 'audits', '2026-11-20_10-00-00-general.md'), '');

@@ -1,5 +1,13 @@
 # Changelog
 
+## 2.7.0
+
+- Rotation computed by `baseline-delta.cjs`: it follows the chain of reports through their **Baseline** links, collects the files named in **Rotation** bullets or cited by findings, and lists up to 15 unchanged unread text files, riskiest first (tests, examples and docs last). It takes the in-scope path prefixes after the report. The checker requires a **Rotation** bullet to name its files in backticks.
+- Re-audit: a finding left **To verify** is always re-checked; file names are read with `-z`, so tabs, quotes or line breaks in a name no longer split it; the installed skill folder is not listed as a change.
+- The checker verifies, for a report in `audits/`, that a carried entry's linked report exists and holds the same finding ID.
+- Pre-scan: a file whose parent folder links outside the target is not read; every secret on a line is reported and masked, not only the first per pattern; history reading stops after 512 MB of patches and says at which commit; only test files are kept in memory; a truncated section names the files holding the remaining leads.
+- `report-skeleton.cjs` treats only "not a git repository" as outside Git and stops on any other Git failure.
+
 ## 2.6.0
 
 - Incremental re-audit rotation: each re-audit also reads in full up to 15 in-scope files no earlier report read, riskiest first, and names them under a **Rotation** bullet in Coverage, so a partial first audit does not leave a permanent blind spot.

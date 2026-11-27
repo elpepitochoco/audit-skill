@@ -218,6 +218,27 @@ test('a Still present finding with unchanged evidence can be a carried entry lin
   assert.ok(checkText(t, carried('Still present', link.replace('`abc1234`', 'the baseline'))).some((e) => e.includes('must name the commit')));
   const wrongCount = carried('Still present', link).replace('| 0 | 0 | 0 | 1 | 0 |', '| 0 | 0 | 0 | 0 | 0 |');
   assert.ok(checkText(t, wrongCount).some((e) => e.includes('differ from active findings')), 'carried entries stay counted');
+
+  // Inside audits/, the linked report must exist and hold the same finding ID.
+  const audits = join(mkdtempSync(join(tmpdir(), 'audit-carried-')), 'audits');
+  t.after(() => rmSync(join(audits, '..'), { recursive: true }));
+  mkdirSync(audits);
+  const inAudits = (text) => {
+    const file = join(audits, '2026-11-23_10-00-00-docs.md');
+    writeFileSync(file, text);
+    return check(file, []);
+  };
+  assert.ok(inAudits(carried('Still present', link)).some((e) => e.includes('which is not in audits/')));
+  writeFileSync(join(audits, '2026-11-20_10-00-00-docs.md'), validReport.replace('DOC-01', 'DOC-02'));
+  assert.ok(inAudits(carried('Still present', link)).some((e) => e.includes('which has no finding DOC-01')));
+  writeFileSync(join(audits, '2026-11-20_10-00-00-docs.md'), validReport);
+  assert.deepEqual(inAudits(carried('Still present', link)), []);
+});
+
+test('a Rotation bullet must name the files it read', (t) => {
+  const rotation = (bullet) => validReport.replace('## Coverage and limitations\n', `## Coverage and limitations\n\n${bullet}\n`);
+  assert.deepEqual(checkText(t, rotation('- **Rotation** `lib/auth.js`, `lib/db.js` read in full.')), []);
+  assert.ok(checkText(t, rotation('- **Rotation** 15 files read in full.')).some((e) => e.includes('**Rotation** must name the files')));
 });
 
 test('rejects finding bullets that have a label without supporting content', (t) => {

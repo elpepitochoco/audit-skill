@@ -2,7 +2,8 @@
 
 // Compares the target with the commit a baseline report audited, for an incremental re-audit:
 // files changed since then, and for each open finding whether a file it cites changed.
-// Read-only. Usage: node baseline-delta.cjs <target-root> <baseline-report.md>
+// Also picks the unchanged files to read in full this run (rotation), so coverage grows across re-audits.
+// Read-only. Usage: node baseline-delta.cjs <target-root> <baseline-report.md> [<path-prefix>...]
 // Prints "Mode: incremental" or "Mode: full audit required: <reason>".
 
 const { spawnSync } = require('node:child_process');
@@ -71,8 +72,56 @@ function findings(lines = []) {
 
 // Advisories and leaked credentials change without any file changing.
 const EXTERNAL = /\/ (?:Dependencies|Secrets)\b/;
+const ROTATION_SIZE = 15;
+const SKIP = /^(?:audits|\.agents\/skills\/audit|\.claude\/skills\/audit)\//;
+const TEXT = /\.(?:c?js|mjs|jsx|tsx?|py|go|rb|java|cs|php|rs|kt|swift|sh|ps1|ya?ml|json|toml|ini|cfg|conf|tf|sql|html?|md|txt)$|(?:^|\/)(?:Dockerfile|Makefile|\.env[^/]*)$/i;
 
-function delta(root, reportPath) {
+// Higher first: where a gap does the most harm. Ties go to the shorter path, then alphabetical order.
+function risk(path) {
+  let score = 0;
+  if (/auth|login|session|admin|permission|acl|role|token|crypt|passw|secret|secur/i.test(path)) score += 4;
+  if (/route|controller|handler|api|server|app\.|index\.|main\.|middleware/i.test(path)) score += 3;
+  if (/config|setting|\.env|docker|workflow|db|database|model|migration|store|upload|payment|billing/i.test(path)) score += 2;
+  // Tests, examples and docs come after every source file, whatever their names say.
+  if (/(?:^|\/)(?:tests?|__tests__|spec|examples?|docs?|benchmarks?|fixtures?)\//i.test(path)) score -= 10;
+  return score;
+}
+
+function baselineLink(text, reportPath) {
+  const link = /\]\(([^)\s#]+\.md)\)/.exec(headerValue(text, 'Baseline') ?? '')?.[1];
+  return link ? join(dirname(reportPath), decodePath(link)) : null;
+}
+
+// Files the chain of reports read in full (Rotation bullets) or cited as evidence, newest report first.
+function readSoFar(reportPath) {
+  const read = new Set();
+  const seen = new Set();
+  let rotations = 0;
+  for (let path = reportPath; path && existsSync(path) && !seen.has(path) && seen.size < 100; ) {
+    seen.add(path);
+    const text = readFileSync(path, 'utf8');
+    for (const f of findings(Object.values(sections(text)).flat())) f.paths.forEach((p) => read.add(p));
+    const rotation = /^- \*\*Rotation\*\*(.*(?:\n(?!- \*\*|#).*)*)/m.exec(text)?.[1];
+    if (rotation) {
+      rotations += 1;
+      for (const m of rotation.matchAll(/`([^`]+)`/g)) read.add(m[1]);
+    }
+    path = baselineLink(text, path);
+  }
+  return { read, rotations, reports: seen.size };
+}
+
+function rotation(root, reportPath, prefixes, touched) {
+  const listed = git(root, ['ls-files', '-z', '--', ...(prefixes.length ? prefixes : ['.'])]);
+  if (listed === null) return null;
+  const { read, rotations, reports } = readSoFar(reportPath);
+  const inScope = listed.split('\0').filter((f) => f && !SKIP.test(f) && TEXT.test(f) && !touched.has(f));
+  const unread = inScope.filter((f) => !read.has(f));
+  unread.sort((a, b) => risk(b) - risk(a) || a.length - b.length || (a < b ? -1 : 1));
+  return { pick: unread.slice(0, ROTATION_SIZE), unread: unread.length, inScope: inScope.length, rotations, reports };
+}
+
+function delta(root, reportPath, prefixes = []) {
   const text = readFileSync(reportPath, 'utf8');
   const branchCommit = headerValue(text, 'Branch / commit') ?? '';
   // Only a backticked hash or one written after "commit": a branch such as fix/deadbeef1 is not a commit.
@@ -89,36 +138,44 @@ function delta(root, reportPath) {
 
   const changed = [];
   if (!reason) {
-    const diff = git(root, ['diff', '--name-status', '-M', '--no-ext-diff', '--no-textconv', commit, '--', '.']);
-    const others = git(root, ['ls-files', '--others', '--exclude-standard', '--', '.']);
+    // -z: names with tabs, quotes or line breaks come through unquoted and unsplit.
+    const diff = git(root, ['diff', '-z', '--name-status', '-M', '--no-ext-diff', '--no-textconv', commit, '--', '.']);
+    const others = git(root, ['ls-files', '-z', '--others', '--exclude-standard', '--', '.']);
     // A failed command must not read as "nothing changed".
     if (diff === null || others === null) reason = 'git could not list the changes since the baseline commit';
     else {
-      for (const line of diff.split('\n')) {
-        const [status, ...files] = line.split('\t');
-        if (status) changed.push({ status: status[0], files });
+      const fields = diff.split('\0');
+      for (let i = 0; i < fields.length && fields[i]; ) {
+        const status = fields[i][0];
+        const count = status === 'R' || status === 'C' ? 2 : 1;
+        changed.push({ status, files: fields.slice(i + 1, i + 1 + count) });
+        i += 1 + count;
       }
-      for (const file of others.split('\n')) if (file) changed.push({ status: '?', files: [file] });
+      for (const file of others.split('\0')) if (file) changed.push({ status: '?', files: [file] });
     }
   }
-  const relevant = changed.filter((c) => !c.files.every((f) => f.startsWith('audits/')));
+  // Reports and the installed skill are not the target.
+  const relevant = changed.filter((c) => !c.files.every((f) => SKIP.test(f)));
   const touched = new Set(relevant.flatMap((c) => c.files));
   const mark = (f) => {
     if (reason) return 're-check';
     if (!f.paths.length) return 're-check: cites no file';
     if (EXTERNAL.test(f.pair ?? '')) return 're-check: depends on facts outside the repository';
+    if (f.certainty !== 'Confirmed') return 're-check: not confirmed in the baseline';
     if (f.source && !existsSync(join(dirname(reportPath), f.source))) return `re-check: ${f.source}, which holds the full entry, is missing`;
     const hit = f.paths.filter((p) => touched.has(p));
     return hit.length ? `re-check: ${hit.join(', ')} changed` : 'cited files unchanged';
   };
-  return { commit, reason, relevant, open, planned, mark };
+  const rotate = reason ? null : rotation(root, reportPath, prefixes, touched);
+  return { commit, reason, relevant, open, planned, mark, rotate };
 }
 
 function main() {
-  const [target, report] = process.argv.slice(2);
-  if (!target || !report) throw new Error('Usage: node baseline-delta.cjs <target-root> <baseline-report.md>');
+  const [target, report, ...rawPrefixes] = process.argv.slice(2);
+  if (!target || !report) throw new Error('Usage: node baseline-delta.cjs <target-root> <baseline-report.md> [<path-prefix>...]');
   const root = resolve(target);
-  const { commit, reason, relevant, open, planned, mark } = delta(root, resolve(report));
+  const prefixes = rawPrefixes.map((p) => p.split('\\').join('/').replace(/^\.\//, ''));
+  const { commit, reason, relevant, open, planned, mark, rotate } = delta(root, resolve(report), prefixes);
   const head = git(root, ['rev-parse', '--short', 'HEAD'])?.trim() ?? 'no commit';
   const out = [`# Delta since ${report}`, `Baseline commit: ${commit ?? 'none'}; current HEAD: ${head}`,
     reason ? `Mode: full audit required: ${reason}` : 'Mode: incremental', ''];
@@ -137,6 +194,13 @@ function main() {
   if (planned.length) {
     out.push('', `## Planned later (${planned.length}): check each deadline or milestone`);
     for (const f of planned) out.push(`- ${f.id} · ${f.priority}: ${mark(f)}`);
+  }
+  if (rotate) {
+    out.push('', `## Rotation: read these ${rotate.pick.length} unchanged files in full and name them in a **Rotation** bullet`,
+      `${rotate.unread} of ${rotate.inScope} unchanged text files${prefixes.length ? ` under ${prefixes.join(', ')}` : ''} are named by no Rotation bullet and cited by no finding in the ${rotate.reports} report(s) of the chain; riskiest first.`);
+    if (!rotate.rotations) out.push('No report in the chain has a Rotation bullet: files the first audit read without citing them may come up again.');
+    for (const f of rotate.pick) out.push(`- \`${f}\``);
+    if (!rotate.pick.length) out.push('none: every unchanged file has been read or cited');
   }
   console.log(out.join('\n'));
 }

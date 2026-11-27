@@ -675,3 +675,16 @@ Reports: `../audit-runs/<tool>/c79/`. One run per tool: a full audit of Express 
 - **The saving appears on a large repository.** With one file changed, the re-audit costs about a third of the first audit with both tools.
 - Tracking is right: the first report is the baseline, `baseline-delta.cjs` reported incremental mode, every earlier finding is carried with its ID, and all four reports pass the checker. Coverage counts the unchanged files as not read (199 and 220).
 - Claude Code added one relevant Low finding on the change itself: the commit replaces `module.parent` in one example while 23 others still use it.
+
+### Case 79b, the same re-audit with rotation (2.7.0)
+
+Reports: `../audit-runs/<tool>/c79/`; the 2.5.0 step 2 is kept in `../audit-runs/c79-<tool>-before-rotation/`. Step 2 of case 79 replayed with the computed rotation, the dependency checks run on the whole scope, and the other 2.5.1 to 2.7.0 changes.
+
+| Tool | Full audit (step 1) | Re-audit 2.5.0 | Re-audit 2.7.0 with rotation | New findings in 2.7.0 |
+| --- | --- | --- | --- | --- |
+| Claude Code | $1.89, 313 s, 45 turns | $0.60, 91 s, 15 turns | $1.02, 165 s, 21 turns (−46% vs full) | 2 Low |
+| Codex | fresh 126k, out 11.5k, 26 turns | fresh 37k, out 3.8k, 14 turns | fresh 122k, out 9.6k, 22 turns (about a full audit) | 1 High, 3 Low |
+
+- Both tools read the files the script listed and named them in a **Rotation** bullet (11 and 15); both reports pass the checker, every earlier ID is kept, and 8 and 14 findings are carried.
+- The rotation finds real gaps: `res.render` does not confine view names (Claude Code, in `lib/view.js`), a rejected setting leaves configuration out of sync and null options throw in `app.render` (Codex, in `lib/application.js`). Codex's High finding, an affected `proxy-addr` range, comes from running the dependency check on the whole scope.
+- The cost is the trade-off: with Claude Code the re-audit stays about half the cost of a full audit; with Codex it costs about as much in fresh tokens, because it read 37 files in full, more than the 15 listed.
