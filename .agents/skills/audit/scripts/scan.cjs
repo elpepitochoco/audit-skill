@@ -3,13 +3,14 @@
 // Read-only pre-scan: prints leads for checks the references already require
 // (secrets in the tree and the Git history, documented commands and links, pinned
 // dependencies, vendored code, tested files) and the file count for Coverage.
-// Usage: node scan.cjs <target-root> [<path-prefix>...]
-// Exits 1 only when the target itself cannot be scanned; per-file problems go under Not scanned.
+// Usage: node scan.cjs [--checks=<comma-separated checks>] <target-root> [<path-prefix>...]
+// Per-file problems go under Not scanned.
 
 const { spawn, spawnSync } = require('node:child_process');
 const { existsSync, lstatSync, readFileSync, readdirSync, realpathSync, statSync } = require('node:fs');
 const { dirname, join, posix, relative, resolve, sep } = require('node:path');
 const readline = require('node:readline');
+const { parseArgs } = require('node:util');
 
 const MAX_LINES = 40; // per section, to keep the output cheap to read
 const MAX_TEXT_BYTES = 1024 * 1024;
@@ -17,6 +18,7 @@ const MAX_HISTORY_COMMITS = 5000; // newest commits whose patches are read for s
 const MAX_HISTORY_BYTES = 512 * 1024 * 1024; // patch text read before stopping, to bound the scan time
 const SKIP_DIRS = new Set(['.git', 'node_modules', 'audits', '.venv', 'venv', '__pycache__', 'dist', 'build']);
 const SKILL_DIRS = ['.agents/skills/audit/', '.claude/skills/audit/'];
+const CHECKS = ['docs', 'secrets', 'dependencies', 'ci', 'containers', 'html', 'tests', 'vendor'];
 
 const SECRET_PATTERNS = [
   ['private key', /-----BEGIN (?:[A-Z]+ )?PRIVATE KEY-----/, () => 'PEM block'],
@@ -177,7 +179,9 @@ function checkDocs(root, file, text, out) {
   });
 }
 
-function checkDependencies(root, file, text, files, out) {
+const REQUIREMENTS = /(^|\/)requirements[\w-]*\.txt$/;
+
+function checkDependencies(file, text, files, out) {
   if (file.endsWith('package.json')) {
     let json;
     try { json = JSON.parse(text); } catch { return out.deps.push(`${file}: not valid JSON`); }
@@ -187,7 +191,7 @@ function checkDependencies(root, file, text, files, out) {
     const dir = posix.dirname(file) === '.' ? '' : `${posix.dirname(file)}/`;
     const locks = ['package-lock.json', 'npm-shrinkwrap.json', 'yarn.lock', 'pnpm-lock.yaml', 'bun.lockb'];
     if (Object.keys(deps).length && !locks.some((l) => files.has(dir + l))) out.deps.push(`${file}: ${Object.keys(deps).length} dependencies, no lockfile`);
-  } else if (/(^|\/)requirements[\w-]*\.txt$/.test(file)) {
+  } else {
     text.split(/\r?\n/).forEach((line, i) => {
       const spec = line.replace(/#.*/, '').trim();
       if (spec && !spec.startsWith('-') && !/==|@/.test(spec)) out.deps.push(`${file}:${i + 1} \`${spec}\` is not pinned`);
@@ -198,13 +202,15 @@ function checkDependencies(root, file, text, files, out) {
 const WORKFLOW = /(?:^|\/)\.github\/workflows\/[^/]+\.ya?ml$/;
 const DOCKERFILE = /(?:^|\/)(?:Dockerfile|Containerfile)(?:\.[\w-]+)?$|\.Dockerfile$/;
 const ENV_FILE = /(?:^|\/)\.env(?:\.(?!example$|sample$|template$|dist$)[\w-]+)?$/;
+const HTML = /\.html?$/i;
+const CONFIG_CHECKS = [['ci', WORKFLOW], ['containers', DOCKERFILE], ['secrets', ENV_FILE], ['html', HTML]];
 const SECRET_NAME = /(?:PASSWORD|PASSWD|SECRET|TOKEN|API_?KEY|PRIVATE_?KEY|CREDENTIALS?)/i;
 
 // CI workflows, container files, committed environment files and HTML pages: configuration
 // mistakes a reader skims over. Each line is a lead under criteria.md's Security or Accessibility rows.
-function checkConfig(file, text, out) {
+function checkConfig(kind, file, text, out) {
   const lines = text.split(/\r?\n/);
-  if (WORKFLOW.test(file)) {
+  if (kind === 'ci') {
     if (/^\s*pull_request_target\s*:/m.test(text) || /^on:\s*\[?[^\n]*pull_request_target/m.test(text)) {
       out.ci.push(`${file}: runs on pull_request_target${/actions\/checkout/.test(text) ? ' and checks out code' : ''}${/github\.event\.pull_request\.head/.test(text) ? ' from the pull request head' : ''}`);
     }
@@ -218,7 +224,7 @@ function checkConfig(file, text, out) {
       const expr = /\$\{\{\s*(github\.(?:event\.(?:issue|pull_request|comment|review|head_commit|commits|discussion)\S*\.(?:title|body|message|ref|label|name|email)|head_ref)\S*)\s*\}\}/.exec(line);
       if (expr) out.ci.push(`${file}:${i + 1} untrusted \`${expr[1]}\` expanded in the workflow`);
     });
-  } else if (DOCKERFILE.test(file)) {
+  } else if (kind === 'containers') {
     const stages = new Set();
     let user = null;
     lines.forEach((line, i) => {
@@ -238,9 +244,9 @@ function checkConfig(file, text, out) {
       if (env && SECRET_NAME.test(env[1]) && !/^\$/.test(env[2])) out.containers.push(`${file}:${i + 1} ${env[1]} gets a value in the image`);
     });
     if (!user || /^(?:root|0)(?::|$)/.test(user)) out.containers.push(`${file}: the final stage runs as root (no USER)`);
-  } else if (ENV_FILE.test(file)) {
+  } else if (kind === 'secrets') {
     out.envFiles.push(`${file}: environment file in the target`);
-  } else if (/\.html?$/i.test(file) && /<html[\s>]/i.test(text)) {
+  } else if (/<html[\s>]/i.test(text)) {
     if (!/<title[^>]*>\s*\S[\s\S]*?<\/title>/i.test(text)) out.pages.push(`${file}: no page title`);
     if (!/<html[^>]*\slang\s*=\s*["']?\w/i.test(text)) out.pages.push(`${file}: no page language`);
   }
@@ -250,7 +256,8 @@ const CODE = /\.(?:c?js|mjs|jsx|tsx?|py|go|rb|java|cs|php|rs|kt|swift)$/;
 const TEST = /(?:^|\/)(?:tests?|__tests__|spec)\/|[._-](?:test|spec)\.[a-z]+$|(?:^|\/)test_[^/]+\.py$|_test\.(?:go|py)$/;
 const VENDOR = /(?:^|\/)(?:vendor|third[_-]party|external)\/|\.min\.(?:js|css)$/;
 
-async function scan(root, prefixes, { maxHistoryBytes = MAX_HISTORY_BYTES } = {}) {
+async function scan(root, prefixes, { maxHistoryBytes = MAX_HISTORY_BYTES, checks } = {}) {
+  const enabled = new Set(checks ?? CHECKS);
   const inGit = git(root, ['rev-parse', '--is-inside-work-tree']) !== null;
   const all = listFiles(root, inGit);
   const files = prefixes.length ? all.filter((f) => prefixes.some((p) => f === p || f.startsWith(p.replace(/\/?$/, '/')))) : all;
@@ -259,28 +266,37 @@ async function scan(root, prefixes, { maxHistoryBytes = MAX_HISTORY_BYTES } = {}
   const current = new Set();
   const texts = new Map();
   for (const file of files) {
+    const docs = enabled.has('docs') && /\.(?:md|markdown)$/i.test(file);
+    const dependencies = enabled.has('dependencies') && (file.endsWith('package.json') || REQUIREMENTS.test(file));
+    const [config] = CONFIG_CHECKS.find(([, pattern]) => pattern.test(file)) ?? [];
+    const checkConfiguration = enabled.has(config);
+    const test = enabled.has('tests') && TEST.test(file);
+    const vendor = (enabled.has('vendor') || enabled.has('tests')) &&
+      (VENDOR.test(file) || /\.(?:c?js|css)$/.test(file));
+    if (checks && !(enabled.has('secrets') || docs || dependencies || checkConfiguration || test || vendor)) continue;
+
     // One unreadable file must not cost the agent every other lead.
     try {
       const { text, skip } = readText(root, file);
       if (skip) { out.unread.push(`${file} (${skip})`); continue; }
       // Only test texts are needed later; keeping every file would hold the whole tree in memory.
-      if (TEST.test(file)) texts.set(file, text);
-      text.split(/\r?\n/).forEach((line, i) => {
+      if (test) texts.set(file, text);
+      if (enabled.has('secrets')) text.split(/\r?\n/).forEach((line, i) => {
         for (const hit of findSecrets(line)) {
           current.add(hit.value);
           out.secrets.push(`${file}:${i + 1} ${hit.type} (${hit.masked})`);
         }
       });
-      if (/\.(?:md|markdown)$/i.test(file)) checkDocs(root, file, text, out);
-      checkDependencies(root, file, text, fileSet, out);
-      checkConfig(file, text, out);
-      if (VENDOR.test(file) || (/\.(?:c?js|css)$/.test(file) && text.split('\n', 20).some((l) => l.length > 1000))) out.vendored.push(file);
+      if (docs) checkDocs(root, file, text, out);
+      if (dependencies) checkDependencies(file, text, fileSet, out);
+      if (checkConfiguration) checkConfig(config, file, text, out);
+      if (vendor && (VENDOR.test(file) || text.split('\n', 20).some((l) => l.length > 1000))) out.vendored.push(file);
     } catch (error) {
       out.unread.push(`${file} (${error.code || error.message})`);
     }
   }
   let historyNote = null;
-  if (inGit) {
+  if (inGit && enabled.has('secrets')) {
     const { hits, error, stoppedAt } = await historySecrets(root, prefixes, current, maxHistoryBytes);
     // A secret seen before the stop may have been added in an older commit than the one shown.
     for (const h of hits) out.history.push(`${h.file} ${h.type} (${h.masked}), added in ${h.commit}${stoppedAt !== null ? ' or earlier' : ''}, absent from the current tree`);
@@ -316,7 +332,8 @@ function section(title, lines, empty = 'none') {
   return `## ${title}\n${shown.length ? shown.join('\n') : empty}\n`;
 }
 
-function format(root, prefixes, { inGit, files, tests, sources, out, historyNote }) {
+function format(root, prefixes, { inGit, files, tests, sources, out, historyNote }, checks) {
+  const enabled = new Set(checks ?? CHECKS);
   const byExt = {};
   for (const f of files) {
     const ext = posix.extname(f) || posix.basename(f);
@@ -325,30 +342,41 @@ function format(root, prefixes, { inGit, files, tests, sources, out, historyNote
   const exts = Object.entries(byExt).sort((a, b) => b[1] - a[1]).map(([e, n]) => `${n} ${e}`).join(', ');
   return [
     `# Pre-scan of ${root}${prefixes.length ? ` (paths: ${prefixes.join(', ')})` : ''}`,
+    ...(checks ? [`Checks selected: ${checks.join(', ')}.`] : []),
     'Leads only: confirm each one in the source before reporting it.\n',
-    `## Files\n- ${files.length} in scope${inGit ? ' (Git: tracked and untracked, ignored files excluded)' : ' (outside Git: directory walk)'}: ${exts || 'none'}\n- ${sources.length} source files, ${tests.length} test files\n`,
-    section('Secrets in the current tree', out.secrets),
-    inGit ? section('Secrets only in the Git history', out.history) + (historyNote ? `Note: ${historyNote}\n` : '') : '## Secrets only in the Git history\nnot checked: outside Git\n',
-    section('Documented commands with no target', out.commands),
-    section('Broken relative links in Markdown', out.links),
-    section('Dependencies', out.deps),
-    section('CI workflows', out.ci),
-    section('Container files', out.containers),
-    section('Environment files', out.envFiles),
-    section('HTML pages', out.pages),
-    section('Vendored, minified or generated files', out.vendored),
-    tests.length ? section('Source files no test file names', out.untested) : '## Source files no test file names\nno test files found\n',
+    `## Files\n- ${files.length} in scope${inGit ? ' (Git: tracked and untracked, ignored files excluded)' : ' (outside Git: directory walk)'}: ${exts || 'none'}\n` +
+      (enabled.has('tests') ? `- ${sources.length} source files, ${tests.length} test files\n` : ''),
+    enabled.has('secrets') && section('Secrets in the current tree', out.secrets),
+    enabled.has('secrets') && (inGit
+      ? section('Secrets only in the Git history', out.history) + (historyNote ? `Note: ${historyNote}\n` : '')
+      : '## Secrets only in the Git history\nnot checked: outside Git\n'),
+    enabled.has('docs') && section('Documented commands with no target', out.commands),
+    enabled.has('docs') && section('Broken relative links in Markdown', out.links),
+    enabled.has('dependencies') && section('Dependencies', out.deps),
+    enabled.has('ci') && section('CI workflows', out.ci),
+    enabled.has('containers') && section('Container files', out.containers),
+    enabled.has('secrets') && section('Environment files', out.envFiles),
+    enabled.has('html') && section('HTML pages', out.pages),
+    enabled.has('vendor') && section('Vendored, minified or generated files', out.vendored),
+    enabled.has('tests') && section('Source files no test file names', out.untested, tests.length ? 'none' : 'no test files found'),
     section('Not scanned', out.unread),
-  ].join('\n');
+  ].filter(Boolean).join('\n');
 }
 
 async function main() {
-  const [target, ...prefixes] = process.argv.slice(2);
-  if (!target) throw new Error('Usage: node scan.cjs <target-root> [<path-prefix>...]');
+  const { values, positionals: [target, ...prefixes] } = parseArgs({
+    options: { checks: { type: 'string' } },
+    allowPositionals: true,
+  });
+  if (!target) throw new Error('Usage: node scan.cjs [--checks=<comma-separated checks>] <target-root> [<path-prefix>...]');
+  const checks = values.checks === undefined ? undefined : [...new Set(values.checks.split(','))];
+  if (checks?.some((check) => !CHECKS.includes(check))) {
+    throw new Error(`--checks must be a comma-separated list of: ${CHECKS.join(', ')}`);
+  }
   const root = resolve(target);
   if (!statSync(root).isDirectory()) throw new Error(`${root} is not a directory`);
   const clean = prefixes.map((p) => p.split(sep).join('/').replace(/^\.\//, ''));
-  process.stdout.write(format(root, clean, await scan(root, clean)));
+  process.stdout.write(format(root, clean, await scan(root, clean, { checks }), checks));
 }
 
 if (require.main === module) {

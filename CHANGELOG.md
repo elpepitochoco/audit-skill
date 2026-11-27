@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.8.0
+
+- Targeted audits can select pre-scan checks by subject with `--checks`. A documentation-only scan checks documented commands and Markdown links and skips Git history.
+
 ## 2.7.1
 
 - Tracking reads stay in `audits/`: `baseline-delta.cjs` follows **Baseline** and carried links only when they name a report by file name alone, and the checker requires that form for a carried link.

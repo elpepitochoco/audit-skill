@@ -70,6 +70,34 @@ test('limits the scan to path prefixes and works outside Git', (t) => {
   assert.doesNotMatch(result.stdout, /README/);
 });
 
+test('limits a documentation scan to documentation leads and skips Git history', async (t) => {
+  const { scan } = require(script);
+  const root = project(t);
+  git(root, 'init', '-q');
+  git(root, 'add', '.');
+  git(root, 'commit', '-qm', 'Initial');
+  writeFileSync(join(root, 'src', 'billing.js'), 'const key = process.env.KEY;\n');
+  git(root, 'commit', '-qam', 'Move key to env');
+
+  const result = run(root, '--checks=docs', '.');
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, /Checks selected: docs/);
+  assert.match(result.stdout, /README\.md:4 `npm start`/);
+  assert.match(result.stdout, /docs\/gone\.md/);
+  assert.doesNotMatch(result.stdout, /## (?:Secrets|Dependencies|Environment files)/);
+  const targeted = await scan(root, [], { checks: ['docs'] });
+  assert.deepEqual(targeted.out.history, []);
+  assert.equal(targeted.historyNote, null);
+  const combined = run(root, '--checks=docs,secrets', '.');
+  assert.equal(combined.status, 0, combined.stderr);
+  assert.match(combined.stdout, /src\/billing\.js API key .*absent from the current tree/);
+  assert.doesNotMatch(combined.stdout, /## Dependencies/);
+
+  const typo = run(root, '--checks=doc', '.');
+  assert.equal(typo.status, 1);
+  assert.match(typo.stderr, /--checks must be a comma-separated list/);
+});
+
 test('scans only the subfolder of a larger repository, history included', (t) => {
   const outer = mkdtempSync(join(tmpdir(), 'audit-scan-outer-'));
   t.after(() => rmSync(outer, { recursive: true }));
