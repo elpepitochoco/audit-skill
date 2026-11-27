@@ -1,7 +1,8 @@
 # Changelog
 
-## 2.5.1
+## 2.6.0
 
+- Incremental re-audit rotation: each re-audit also reads in full up to 15 in-scope files no earlier report read, riskiest first, and names them under a **Rotation** bullet in Coverage, so a partial first audit does not leave a permanent blind spot.
 - Incremental re-audit: a failing `git diff` or `git ls-files` requires a full audit instead of reading as no change; findings on dependencies or secrets are always re-checked, and their checks run on the whole scope; a carried entry whose full-entry report is missing is re-checked; a branch name that looks like a hash is no longer read as the baseline commit.
 - The checker requires a carried entry to name, in backticks, the commit its files are unchanged since.
 - `report-skeleton.cjs` stops when `git status` or `git rev-parse` fails instead of recording no local changes.
