@@ -87,12 +87,19 @@ function risk(path) {
   return score;
 }
 
-function baselineLink(text, reportPath) {
-  const link = /\]\(([^)\s#]+\.md)\)/.exec(headerValue(text, 'Baseline') ?? '')?.[1];
-  return link ? join(dirname(reportPath), decodePath(link)) : null;
+// A report links other reports by bare file name, next to it in audits/. Anything else (a folder, ../) is
+// not followed, so a crafted link cannot make the script read outside audits/.
+function sibling(reportPath, link) {
+  const name = link && decodePath(link);
+  return name && /^[^/\\]+\.md$/.test(name) && name !== '..' ? join(dirname(reportPath), name) : null;
 }
 
-// Files the chain of reports read in full (Rotation bullets) or cited as evidence, newest report first.
+function baselineLink(text, reportPath) {
+  return sibling(reportPath, /\]\(([^)\s#]+\.md)\)/.exec(headerValue(text, 'Baseline') ?? '')?.[1]);
+}
+
+// Files the chain of reports read in full, as their Rotation bullets name them, newest report first. A cited
+// file is not counted: a finding can cite a line of a file nobody read in full.
 function readSoFar(reportPath) {
   const read = new Set();
   const seen = new Set();
@@ -100,7 +107,6 @@ function readSoFar(reportPath) {
   for (let path = reportPath; path && existsSync(path) && !seen.has(path) && seen.size < 100; ) {
     seen.add(path);
     const text = readFileSync(path, 'utf8');
-    for (const f of findings(Object.values(sections(text)).flat())) f.paths.forEach((p) => read.add(p));
     const rotation = /^- \*\*Rotation\*\*(.*(?:\n(?!- \*\*|#).*)*)/m.exec(text)?.[1];
     if (rotation) {
       rotations += 1;
@@ -162,7 +168,8 @@ function delta(root, reportPath, prefixes = []) {
     if (!f.paths.length) return 're-check: cites no file';
     if (EXTERNAL.test(f.pair ?? '')) return 're-check: depends on facts outside the repository';
     if (f.certainty !== 'Confirmed') return 're-check: not confirmed in the baseline';
-    if (f.source && !existsSync(join(dirname(reportPath), f.source))) return `re-check: ${f.source}, which holds the full entry, is missing`;
+    if (f.source && !sibling(reportPath, f.source)) return `re-check: the full entry link ${f.source} is not a report in audits/`;
+    if (f.source && !existsSync(sibling(reportPath, f.source))) return `re-check: ${f.source}, which holds the full entry, is missing`;
     const hit = f.paths.filter((p) => touched.has(p));
     return hit.length ? `re-check: ${hit.join(', ')} changed` : 'cited files unchanged';
   };
@@ -197,10 +204,10 @@ function main() {
   }
   if (rotate) {
     out.push('', `## Rotation: read these ${rotate.pick.length} unchanged files in full and name them in a **Rotation** bullet`,
-      `${rotate.unread} of ${rotate.inScope} unchanged text files${prefixes.length ? ` under ${prefixes.join(', ')}` : ''} are named by no Rotation bullet and cited by no finding in the ${rotate.reports} report(s) of the chain; riskiest first.`);
-    if (!rotate.rotations) out.push('No report in the chain has a Rotation bullet: files the first audit read without citing them may come up again.');
+      `${rotate.unread} of ${rotate.inScope} unchanged text files${prefixes.length ? ` under ${prefixes.join(', ')}` : ''} are named by no Rotation bullet in the ${rotate.reports} report(s) of the chain; riskiest first.`);
+    if (!rotate.rotations) out.push('No report in the chain has a Rotation bullet: files the first audit read in full may come up again.');
     for (const f of rotate.pick) out.push(`- \`${f}\``);
-    if (!rotate.pick.length) out.push('none: every unchanged file has been read or cited');
+    if (!rotate.pick.length) out.push('none: every unchanged file has been read in a rotation');
   }
   console.log(out.join('\n'));
 }

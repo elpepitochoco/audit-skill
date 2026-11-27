@@ -31,6 +31,18 @@ const GRID = new Set(
     .filter(Boolean).map((m) => `${m[1]} / ${m[2]}`),
 );
 
+// Commits recorded in the Branch / commit header of the other reports in a folder.
+function auditedCommits(directory, self) {
+  const commits = [];
+  for (const name of fs.readdirSync(directory)) {
+    const other = path.join(directory, name);
+    if (!name.endsWith('.md') || other === path.resolve(self)) continue;
+    const header = /^- \*\*Branch \/ commit\*\*.*$/m.exec(fs.readFileSync(other, 'utf8'))?.[0] ?? '';
+    for (const m of header.matchAll(/`([0-9a-f]{7,64})`/g)) commits.push(m[1]);
+  }
+  return commits;
+}
+
 function tableCells(line = '') {
   return line.trim().replace(/^\||(?<!\\)\|$/g, '').split(/(?<!\\)\|/).map((cell) => cell.trim());
 }
@@ -274,17 +286,26 @@ function checkBytes(bytes, file, forbid = []) {
         if (status !== 'Still present') errors.push(`${where}: only a Still present finding can be a **Carried** entry`);
         else if (!/\]\([^)\s]+\.md(?:#[^)\s]*)?\)/.test(detail)) errors.push(`${where}: **Carried** must link the report holding the full entry`);
         else if (!/`[0-9a-f]{7,64}`/.test(detail)) errors.push(`${where}: **Carried** must name the commit its files are unchanged since, in backticks`);
-        else if (path.basename(path.dirname(path.resolve(file))) === 'audits') {
+        else if (/[/\\]|%2f|%5c/i.test(/\]\(([^)\s#]+\.md)(?:#[^)\s]*)?\)/.exec(detail)[1])) {
+          // A bare file name keeps the link, and anything that follows it, inside audits/.
+          errors.push(`${where}: **Carried** must link a report in audits/ by its file name alone`);
+        } else if (path.basename(path.dirname(path.resolve(file))) === 'audits') {
           // In audits/, the linked report must exist and hold this finding; a draft elsewhere cannot resolve the link.
+          const directory = path.dirname(path.resolve(file));
           const link = /\]\(([^)\s#]+\.md)/.exec(detail)[1];
           let target = null;
           try {
-            target = fs.readFileSync(path.join(path.dirname(path.resolve(file)), decodeURIComponent(link)), 'utf8');
+            target = fs.readFileSync(path.join(directory, decodeURIComponent(link)), 'utf8');
           } catch {
             errors.push(`${where}: **Carried** links ${link}, which is not in audits/`);
           }
           if (target !== null && !target.split(/\r?\n/).some((line) => line.startsWith(`### ${id} ·`))) {
             errors.push(`${where}: **Carried** links ${link}, which has no finding ${id}`);
+          }
+          // The commit it is unchanged since must be one an earlier report audited.
+          const commit = /`([0-9a-f]{7,64})`/.exec(detail)[1];
+          if (!auditedCommits(directory, file).some((c) => c.startsWith(commit) || commit.startsWith(c))) {
+            errors.push(`${where}: **Carried** names commit ${commit}, which no other report in audits/ records in **Branch / commit**`);
           }
         }
       }

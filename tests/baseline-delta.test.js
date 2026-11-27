@@ -171,9 +171,9 @@ test('rotation picks unread unchanged files, riskiest first, and skips those rea
   const result = run(root, join(root, 'audits', 'second.md'));
   assert.equal(result.status, 0, result.stderr);
   const picked = result.stdout.split('## Rotation')[1].match(/^- `[^`]+`$/gm);
-  // src/a.js and src/b.js are cited by findings, logo.png is not text.
-  assert.deepEqual(picked, ['- `src/auth.js`', '- `src/util.js`', '- `test/auth.test.js`']);
-  assert.match(result.stdout, /3 of 6 unchanged text files are named by no Rotation bullet and cited by no finding in the 2 report\(s\)/);
+  // Cited files still count as unread: a citation does not mean the file was read in full. logo.png is not text.
+  assert.deepEqual(picked, ['- `src/auth.js`', '- `src/a.js`', '- `src/b.js`', '- `src/util.js`', '- `test/auth.test.js`']);
+  assert.match(result.stdout, /5 of 6 unchanged text files are named by no Rotation bullet in the 2 report\(s\)/);
   assert.doesNotMatch(result.stdout, /No report in the chain has a Rotation bullet/);
 
   const scoped = run(root, join(root, 'audits', 'second.md'), 'test');
@@ -189,4 +189,19 @@ test('names with tabs or line breaks are listed whole', { skip: process.platform
   git(root, 'commit', '-qm', 'Odd name');
   const result = run(root, join(root, 'audits', 'base.md'));
   assert.ok(result.stdout.includes('- A src/odd\tname\n.js'), result.stdout);
+});
+
+test('links out of audits/ are not followed', (t) => {
+  const { root, commit } = repo(t);
+  mkdirSync(join(root, 'audits'));
+  writeFileSync(join(root, 'outside.md'), `${report(commit)}\n- **Rotation** \`src/auth.js\` read in full.\n`);
+  const carried = report(commit)
+    .replace('None: first audit', '[earlier](../outside.md)')
+    .replace(/### GEN-02 · Medium · Quality \/ Tests and CI · Confirmed · New\n\n- \*\*Observed\*\* `src\/b\.js:1` has no test\./,
+      '### GEN-02 · Medium · Quality / Tests and CI · Confirmed · Still present\n\n- **Carried** `src/b.js` unchanged since `abc1234`; full entry in [out](../outside.md).');
+  writeFileSync(join(root, 'audits', 'second.md'), carried);
+  const result = run(root, join(root, 'audits', 'second.md'));
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, /GEN-02 · Medium · Still present: re-check: the full entry link \.\.\/outside\.md is not a report in audits\//);
+  assert.match(result.stdout, /in the 1 report\(s\) of the chain/, 'the Baseline link to ../outside.md is not followed');
 });

@@ -232,7 +232,11 @@ test('a Still present finding with unchanged evidence can be a carried entry lin
   writeFileSync(join(audits, '2026-11-20_10-00-00-docs.md'), validReport.replace('DOC-01', 'DOC-02'));
   assert.ok(inAudits(carried('Still present', link)).some((e) => e.includes('which has no finding DOC-01')));
   writeFileSync(join(audits, '2026-11-20_10-00-00-docs.md'), validReport);
+  assert.ok(inAudits(carried('Still present', link)).some((e) => e.includes('names commit abc1234, which no other report')));
+  writeFileSync(join(audits, '2026-11-20_10-00-00-docs.md'), validReport.replace('main / no commit yet', 'main, commit `abc1234`'));
   assert.deepEqual(inAudits(carried('Still present', link)), []);
+  const outside = link.replace('(2026-11-20_10-00-00-docs.md)', '(../../secret.md)');
+  assert.ok(checkText(t, carried('Still present', outside)).some((e) => e.includes('by its file name alone')));
 });
 
 test('a Rotation bullet must name the files it read', (t) => {

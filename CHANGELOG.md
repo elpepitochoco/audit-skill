@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.7.1
+
+- Tracking reads stay in `audits/`: `baseline-delta.cjs` follows **Baseline** and carried links only when they name a report by file name alone, and the checker requires that form for a carried link.
+- Rotation counts as read only the files a **Rotation** bullet names; a file a finding cites is no longer taken as read in full.
+- The checker requires a carried entry's commit to be one another report in `audits/` records in **Branch / commit**.
+- Re-audit: unchanged files may be read, in full if needed, as far as a change or a re-check requires; only reading them for their own sake beyond the rotation is ruled out.
+
 ## 2.7.0
 
 - Rotation computed by `baseline-delta.cjs`: it follows the chain of reports through their **Baseline** links, collects the files named in **Rotation** bullets or cited by findings, and lists up to 8 unchanged unread text files, riskiest first (tests, examples and docs last); no other unchanged file is read in full. It takes the in-scope path prefixes after the report. The checker requires a **Rotation** bullet to name its files in backticks.
