@@ -327,6 +327,10 @@ function checkBytes(bytes, file, forbid = []) {
     findingsById,
     errors,
   );
+  const placeholder = sourceLines.find((line) => line.includes('<fill:'));
+  if (placeholder) errors.push(`unfilled skeleton placeholder: ${placeholder.trim().slice(0, 80)}`);
+  // publish-report.cjs reads these to fill a Summary row written as "auto"; non-enumerable, so errors stay a plain list.
+  Object.defineProperty(errors, 'activeCounts', { value: PRIORITIES.map((p) => counts[p]) });
   return errors;
 }
 

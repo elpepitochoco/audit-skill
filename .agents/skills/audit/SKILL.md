@@ -26,7 +26,8 @@ An audit is read-only on the target. The only file it writes is the new report. 
 ## 2. Record the state before examining
 
 - The report root is the Git top level, while user-supplied relative paths resolve from the user's starting directory.
-- Record the branch, `HEAD` commit (or "no commit yet"), and local changes of the target with `git --no-optional-locks status --short --untracked-files=all`, which preserves the index metadata. Exclude `audits/` unless reports are in scope.
+- When `scripts/` is installed and Node.js 18.14 or later is available, run `node <skill-dir>/scripts/report-skeleton.cjs <target-root> <scope-slug>`. It records the state below in a report draft and prints the draft path and the path to publish to; fill its `<fill: …>` placeholders as you go. For a commit, diff or staged scope, adjust **Local changes** with [references/git-scope.md](references/git-scope.md).
+- Otherwise record the branch, `HEAD` commit (or "no commit yet"), and local changes of the target with `git --no-optional-locks status --short --untracked-files=all`, which preserves the index metadata. Exclude `audits/` unless reports are in scope.
 - For each supplied reference, note its path and a content hash (`git hash-object <file>`, or a labeled SHA-256 hash).
 
 ## 3. Examine
@@ -48,4 +49,4 @@ If `audits/` holds no earlier report, write "None: first audit" in **Baseline** 
 
 ## 6. Deliver
 
-Write the report in English, section titles included. Before saving, recount the Summary table from the finding headings. In chat, use the user's language and give a short summary with the counts per priority and the link to the report file.
+Write the report in English, section titles included. Before saving, recount the Summary table from the finding headings, unless its counts row is `auto`, which `publish-report.cjs` fills. In chat, use the user's language and give a short summary with the counts per priority and the link to the report file.

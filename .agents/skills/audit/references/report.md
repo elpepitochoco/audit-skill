@@ -4,7 +4,7 @@
 
 - Write a **new** report in `audits/` at the target root on every run, even when nothing is found. `audits/` must be a real directory; a symbolic link or junction there is a publication blocker.
 - Name: `YYYY-MM-DD_HH-mm-ss-<scope>.md` in local time, for example `2026-11-21_14-32-08-general.md`. `<scope>` is a short kebab-case slug of the resolved scope (`general` for a full audit).
-- Publish only the complete report. When `scripts/` is installed and Node.js 18.14 or later is available, write the draft in the system temp folder and run `node <skill-dir>/scripts/publish-report.cjs --check [--forbid <regex>]... <draft-file> <target-root>/audits/<intended-filename>.md`. It checks the format, picks a free name, prints the published path and removes the draft. Fix any reported error and retry; use the printed path in chat.
+- Publish only the complete report. When `scripts/` is installed and Node.js 18.14 or later is available, write the draft in the system temp folder and run `node <skill-dir>/scripts/publish-report.cjs --check [--forbid <regex>]... <draft-file> <target-root>/audits/<intended-filename>.md`. It fills a Summary counts row written as `| auto | auto | auto | auto | auto |` from the active findings, refuses a draft with an unfilled `<fill: …>` placeholder from `report-skeleton.cjs`, checks the format, picks a free name, prints the published path and removes the draft. Fix any reported error and retry; use the printed path in chat.
 - Otherwise write UTF-8 without a byte order mark and never overwrite a report: on collision use `-2`, `-3`, … before `.md`, with a no-overwrite file operation.
 
 ## Required content, in this order

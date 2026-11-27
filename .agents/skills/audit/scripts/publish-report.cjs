@@ -6,6 +6,16 @@ const { tmpdir } = require('node:os');
 const { basename, dirname, extname, isAbsolute, join, relative, resolve } = require('node:path');
 
 const UTF8_BOM = Buffer.from([0xef, 0xbb, 0xbf]);
+const AUTO_COUNTS = /^\|(?:[ \t]*auto[ \t]*\|){5}[ \t]*$/m;
+
+// A Summary counts row written as "| auto | auto | auto | auto | auto |" gets the counts of the active findings.
+function fillCounts(contents) {
+  const text = contents.toString('utf8');
+  if (!AUTO_COUNTS.test(text)) return contents;
+  const { checkBytes } = require('./check-report.cjs');
+  const { activeCounts } = checkBytes(Buffer.from(text.replace(AUTO_COUNTS, '| 0 | 0 | 0 | 0 | 0 |')), 'draft.md');
+  return Buffer.from(text.replace(AUTO_COUNTS, `| ${activeCounts.join(' | ')} |`));
+}
 
 function publishReport(draft, destination, validate, forbid) {
   const destinationPath = resolve(destination);
@@ -14,10 +24,11 @@ function publishReport(draft, destination, validate, forbid) {
     throw new Error('Pass the intended Markdown filename inside the audits directory.');
   }
 
-  const contents = readFileSync(draft);
-  if (!isUtf8(contents) || contents.subarray(0, UTF8_BOM.length).equals(UTF8_BOM)) {
+  const raw = readFileSync(draft);
+  if (!isUtf8(raw) || raw.subarray(0, UTF8_BOM.length).equals(UTF8_BOM)) {
     throw new Error('The report draft must be UTF-8 without a byte order mark.');
   }
+  const contents = fillCounts(raw);
   if (validate || forbid.length) {
     const { checkBytes } = require('./check-report.cjs');
     const errors = checkBytes(contents, destinationPath, forbid);
