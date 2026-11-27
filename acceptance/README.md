@@ -695,3 +695,9 @@ Cases 42 to 76 come from the `codex` branch, where they were numbered 22 to 56. 
 1. In a fresh billing fixture, run `audit` with no parameters.
 2. Add a `start` script to `package.json` and the admin check to `deleteUser` in `src/users.js`, and commit. Run `audit` with no parameters again.
 3. Expect the first report as baseline and an incremental re-audit from its commit: D2 and D8 **Fixed** after a re-check, D7 and D11 re-checked in the changed `src/users.js`, the findings on unchanged files (D1, D3, D4, D5, D10) **Still present** from unchanged evidence, and the unchanged files counted as not read in Coverage. Compare the input and output tokens of the two steps with `usage.js`.
+
+### 79. Incremental re-audit on a large repository
+
+1. In a copy of Express v5.1.0 (225 files) with the skill committed, run `audit` with no parameters.
+2. In `examples/hello-world/index.js`, replace `!module.parent` with `require.main === module`, and commit. Run `audit` with no parameters again.
+3. Expect the first report as baseline and an incremental re-audit: only `examples/hello-world/index.js` examined, findings on other files carried, IDs kept. Expect the second step to cost clearly less than the first; compare them with `usage.js`.

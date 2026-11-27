@@ -5,7 +5,7 @@
 # Logs go to $AUDIT_RUNS/<tool>/logs. Check the reports with check-report.js and judge them against README.md.
 # Exit status: 0 only if setup succeeded and every agent step exited 0 and wrote exactly one new report in audits/.
 # Public benchmark cases (nodegoat, juiceshop, ..., see acceptance/public.md) fetch pinned commits into $AUDIT_RUNS/src (network).
-# Cases 27, 33, 34 and 39 clone Express once into $AUDIT_RUNS/express-src (network). Case 34 continues case 27's repository.
+# Cases 27, 33, 34, 39 and 79 clone Express once into $AUDIT_RUNS/express-src (network). Case 34 continues case 27's repository.
 set -eu
 export MSYS2_ARG_CONV_EXCL="/audit;//"  # Git Bash: keep these arguments intact, still convert /d/... paths
 TOOL=${1:?codex or cc}; CASE=${2:?case number}
@@ -417,6 +417,14 @@ EOF
   if (actor.role !== 'admin') throw new Error('forbidden');"
   commit c78 "Add start script and admin check on delete"
   cx c78 s2 ""
+  ;;
+79)
+  # Incremental re-audit on a large repository: a full audit of Express, one small committed fix, then the same audit again.
+  R="$B/c79"; rm -rf "$R"; express "$R"; skill "$R"; commit c79 "Add the audit skill"
+  cx c79 s1 ""
+  ed c79 examples/hello-world/index.js "if (!module.parent) {" "if (require.main === module) {"
+  commit c79 "Replace deprecated module.parent in hello-world"
+  cx c79 s2 ""
   ;;
 nodegoat)
   pub nodegoat OWASP/NodeGoat c5cb68a7084e4ae7dcc60e6a98768720a81841e8; rm -rf "$R/app/views/tutorial"; pinit

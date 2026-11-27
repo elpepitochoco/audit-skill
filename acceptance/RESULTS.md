@@ -662,3 +662,16 @@ Reports: `../audit-runs/carried/`. Same case, carried entries allowed for Still 
 - Both tools used the carried form and both reports pass the checker; D2 is Fixed, every ID is kept.
 - Only 6 or 7 findings could be carried: the others cite `src/users.js`, `README.md` or `package.json`, which the fixes changed. The re-audit report is as long as the first one.
 - On this 12-file fixture the re-audit still costs about as much as the first audit with Codex and more with Claude Code. Its fixed costs (reading the baseline report and `tracking.md`, running the delta, writing Changes since baseline, more turns) outweigh the files it skips. The saving should appear on repositories where most files are unchanged; no such case has been measured yet.
+
+### Case 79, incremental re-audit on Express (225 files, 2.5.0)
+
+Reports: `../audit-runs/<tool>/c79/`. One run per tool: a full audit of Express v5.1.0, a one-line commit in `examples/hello-world/index.js`, then the same audit again.
+
+| Tool | Step 1 fresh / out / turns | Step 2 fresh / out / turns | Carried entries | Step 2 vs step 1 |
+| --- | --- | --- | --- | --- |
+| Claude Code | 103k / 26.7k / 45 | 41k / 8.6k / 15 | 15 of 15 | $0.60 vs $1.89 (−68%), 91 s vs 313 s |
+| Codex | 126k / 11.5k / 26 | 37k / 3.8k / 14 | 19 of 19 | total input −78%, fresh −70%, output −67% |
+
+- **The saving appears on a large repository.** With one file changed, the re-audit costs about a third of the first audit with both tools.
+- Tracking is right: the first report is the baseline, `baseline-delta.cjs` reported incremental mode, every earlier finding is carried with its ID, and all four reports pass the checker. Coverage counts the unchanged files as not read (199 and 220).
+- Claude Code added one relevant Low finding on the change itself: the commit replaces `module.parent` in one example while 23 others still use it.
